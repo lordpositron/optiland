@@ -1,8 +1,5 @@
-from abc import ABC, abstractmethod
-
-
-class BaseField(ABC):
-    """The base class for all field types.
+class Field:
+    """Represents a field with specific properties.
 
     Attributes:
         field_type (str): The type of the field.
@@ -26,10 +23,6 @@ class BaseField(ABC):
         self.y = y
         self.vx = vignette_factor_x
         self.vy = vignette_factor_y
-
-    @abstractmethod
-    def get_object_position(self, optic):
-        """"""
 
     def to_dict(self):
         """Convert the field to a dictionary.
