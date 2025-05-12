@@ -13,3 +13,13 @@ class AngleFieldGroup(BaseFieldGroup):
 
     def to_paraxial_starting_ray(self, Hy, Py, wavelength, optic):
         return
+
+    def set_telecentric(self, is_telecentric):
+        """Specify whether the system is telecentric in object space.
+
+        Args:
+            is_telecentric (bool): Whether the system is telecentric in object
+                space.
+
+        """
+        raise ValueError('Field type cannot be "angle" for telecentric object space.')

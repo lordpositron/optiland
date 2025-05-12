@@ -164,7 +164,7 @@ class BaseFieldGroup(ABC):
         return self.fields[field_number]
 
     def set_telecentric(self, is_telecentric):
-        """Speocify whether the system is telecentric in object space.
+        """Specify whether the system is telecentric in object space.
 
         Args:
             is_telecentric (bool): Whether the system is telecentric in object
