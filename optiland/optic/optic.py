@@ -16,7 +16,7 @@ from typing import Union
 
 from optiland.aberrations import Aberrations
 from optiland.aperture import Aperture
-from optiland.fields import Field, FieldGroup
+from optiland.fields import Field, FieldGroup, make_field_group
 from optiland.optic.optic_updater import OpticUpdater
 from optiland.paraxial import Paraxial
 from optiland.pickup import PickupManager
@@ -56,7 +56,7 @@ class Optic:
         self.field_type = None
 
         self.surface_group = SurfaceGroup()
-        self.fields = FieldGroup()
+        self.fields = None
         self.wavelengths = WavelengthGroup()
 
         self.paraxial = Paraxial(self)
@@ -169,8 +169,10 @@ class Optic:
                 factor. Defaults to 0.0.
 
         """
+        if self.fields is None:
+            raise ValueError("Field type must be set before adding fields.")
         new_field = Field(self.field_type, x, y, vx, vy)
-        self.fields.add_field(new_field)
+        self.fields.add_field(new_field, self)
 
     def add_wavelength(self, value, is_primary=False, unit="um"):
         """Add a wavelength to the optical system.
@@ -201,8 +203,12 @@ class Optic:
             field_type (str): The type of field.
 
         """
-        if field_type not in ["angle", "object_height"]:
-            raise ValueError('Invalid field type. Must be "angle" or "object_height".')
+        if field_type not in ["angle", "object_height", "paraxial_image_height"]:
+            raise ValueError(
+                'Invalid field type. Must be "angle", "object_height", '
+                'or "paraxial_image_height"'
+            )
+        self.fields = make_field_group(field_type)
         self.field_type = field_type
 
     def set_radius(self, value, surface_number):

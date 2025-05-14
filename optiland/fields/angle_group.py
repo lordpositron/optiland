@@ -6,13 +6,19 @@ class AngleFieldGroup(BaseFieldGroup):
         super().__init__()
 
     def validate(self, optic):
-        return
+        if optic.field_type != "angle":
+            raise ValueError("Incompatible field types. Must be of type 'angle'.")
+
+        if optic.obj_space_telecentric:
+            raise ValueError(
+                'Field type cannot be "angle" for telecentric object space.'
+            )
 
     def to_ray_origins(self, Hx, Hy, Px, Py, vx, vy, optic):
-        return
+        return  # pragma: no cover
 
     def to_paraxial_starting_ray(self, Hy, Py, wavelength, optic):
-        return
+        return  # pragma: no cover
 
     def set_telecentric(self, is_telecentric):
         """Specify whether the system is telecentric in object space.

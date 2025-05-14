@@ -139,13 +139,15 @@ class BaseFieldGroup(ABC):
             for x, y in zip(self.x_fields, self.y_fields)
         ]
 
-    def add_field(self, field):
+    def add_field(self, field, optic):
         """Add a field to the list of fields.
 
         Args:
             field: The field to be added.
+            optic: The optic instance. Used for validation only.
 
         """
+        self.validate(optic)
         self.fields.append(field)
 
     def get_field(self, field_number):
