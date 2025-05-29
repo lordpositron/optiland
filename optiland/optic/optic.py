@@ -308,29 +308,45 @@ class Optic:
         ylim=None,
         title=None,
         reference=None,
+        coloring_scheme=None,
+        colormap_name=None,
     ):
-        """Draw a 2D representation of the optical system.
+        """Draws a 2D representation of the optical system using Matplotlib.
+
+        This method visualizes the optical components and ray traces in a 2D
+        projection. The appearance of lens components can be customized using
+        the `coloring_scheme` and `colormap_name` parameters.
 
         Args:
-            fields (str or list, optional): The fields to be displayed.
+            fields (str or list, optional): Specifies the fields of view to trace.
+                Can be 'all', a single field index, or a list of field indices.
                 Defaults to 'all'.
-            wavelengths (str or list, optional): The wavelengths to be
-                displayed. Defaults to 'primary'.
-            num_rays (int, optional): The number of rays to be traced for each
-                field and wavelength. Defaults to 3.
-            distribution (str, optional): The distribution of the rays.
-                Defaults to 'line_y'.
-            figsize (tuple, optional): The size of the figure. Defaults to
-                (10, 4).
-            xlim (tuple, optional): The x-axis limits of the plot. Defaults to
-                None.
-            ylim (tuple, optional): The y-axis limits of the plot. Defaults to
-                None.
-            reference (str, optional): The reference rays to plot. Options
-                include "chief" and "marginal". Defaults to None.
-
+            wavelengths (str or list, optional): Specifies the wavelengths to trace.
+                Can be 'primary', a single wavelength index/value, or a list.
+                Defaults to 'primary'.
+            num_rays (int, optional): The number of rays to trace per field/wavelength
+                combination. Defaults to 3.
+            distribution (str, optional): The pattern for ray distribution in the
+                entrance pupil (e.g., 'line_y', 'grid'). Defaults to 'line_y'.
+            figsize (tuple[float, float], optional): The size of the matplotlib
+                figure (width, height) in inches. Defaults to (10, 4).
+            xlim (tuple[float, float], optional): X-axis limits for the plot. If None,
+                limits are auto-scaled. Defaults to None.
+            ylim (tuple[float, float], optional): Y-axis limits for the plot. If None,
+                limits are auto-scaled. Defaults to None.
+            title (str, optional): The title for the plot. Defaults to None.
+            reference (str, optional): Specifies reference rays to plot, such as
+                "chief" or "marginal". Defaults to None.
+            coloring_scheme (str, optional): The name of the coloring strategy
+                to apply to lens components (e.g., 'abbe_number', 'material_name').
+                If None, a default coloring is used. Defaults to None.
+            colormap_name (str, optional): The name of the matplotlib colormap
+                to be used by the `coloring_scheme` if it supports colormaps.
+                Defaults to None.
         """
-        viewer = OpticViewer(self)
+        viewer = OpticViewer(
+            self, coloring_scheme=coloring_scheme, colormap_name=colormap_name
+        )
         viewer.view(
             fields,
             wavelengths,
@@ -352,27 +368,42 @@ class Optic:
         figsize=(1200, 800),
         dark_mode=False,
         reference=None,
+        coloring_scheme=None,
+        colormap_name=None,
     ):
-        """Draw a 3D representation of the optical system.
+        """Draws a 3D representation of the optical system using VTK.
+
+        This method visualizes the optical components and ray traces in a 3D
+        environment. Lens component appearance can be customized using the
+        `coloring_scheme` and `colormap_name` parameters.
 
         Args:
-            fields (str or list, optional): The fields to be displayed.
+            fields (str or list, optional): Specifies the fields of view to trace.
+                Can be 'all', a single field index, or a list of field indices.
                 Defaults to 'all'.
-            wavelengths (str or list, optional): The wavelengths to be
-                displayed. Defaults to 'primary'.
-            num_rays (int, optional): The number of rays to be traced for each
-                field and wavelength. Defaults to 2.
-            distribution (str, optional): The distribution of the rays.
-                Defaults to 'ring'.
-            figsize (tuple, optional): The size of the figure. Defaults to
-                (1200, 800).
-            dark_mode (bool, optional): Whether to use dark mode. Defaults to
-                False.
-            reference (str, optional): The reference rays to plot. Options
-                include "chief" and "marginal". Defaults to None.
-
+            wavelengths (str or list, optional): Specifies the wavelengths to trace.
+                Can be 'primary', a single wavelength index/value, or a list.
+                Defaults to 'primary'.
+            num_rays (int, optional): The number of rays to trace per field/wavelength
+                combination. Defaults to 24 for a fuller 3D look.
+            distribution (str, optional): The pattern for ray distribution in the
+                entrance pupil (e.g., 'ring', 'grid'). Defaults to 'ring'.
+            figsize (tuple[int, int], optional): The size of the VTK render window
+                (width, height) in pixels. Defaults to (1200, 800).
+            dark_mode (bool, optional): If True, a dark background theme is used for
+                the 3D view. Defaults to False.
+            reference (str, optional): Specifies reference rays to plot, such as
+                "chief" or "marginal". Defaults to None.
+            coloring_scheme (str, optional): The name of the coloring strategy
+                to apply to lens components (e.g., 'refractive_index', 'curvature_sign').
+                If None, a default coloring is used. Defaults to None.
+            colormap_name (str, optional): The name of the matplotlib colormap
+                to be used by the `coloring_scheme` if it supports colormaps.
+                Defaults to None.
         """
-        viewer = OpticViewer3D(self)
+        viewer = OpticViewer3D(
+            self, coloring_scheme=coloring_scheme, colormap_name=colormap_name
+        )
         viewer.view(
             fields,
             wavelengths,

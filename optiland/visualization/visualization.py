@@ -23,28 +23,39 @@ from optiland.visualization.system import OpticalSystem
 
 
 class OpticViewer:
-    """A class used to visualize optical systems.
+    """A class used to visualize optical systems in 2D using Matplotlib.
+
+    This viewer facilitates the plotting of optical components and ray traces.
+    Lens coloring can be customized via `coloring_scheme` and `colormap_name`.
 
     Args:
-        optic: The optical system to be visualized.
+        optic (Optic): The `Optic` object to be visualized.
+        coloring_scheme (str, optional): Name of the coloring strategy for lenses.
+            Passed to `OpticalSystem`. Defaults to None (for default coloring).
+        colormap_name (str, optional): Name of the colormap for the chosen
+            coloring strategy. Passed to `OpticalSystem`. Defaults to None.
 
     Attributes:
-        optic: The optical system to be visualized.
-        rays: An instance of Rays2D for ray tracing.
-        system: An instance of OpticalSystem for system representation.
+        optic (Optic): The optical system being visualized.
+        rays (Rays2D): 2D ray tracing data associated with the optic.
+        system (OpticalSystem): The 2D representation of the optical system
+            configured with the specified coloring parameters.
 
     Methods:
-        view(fields='all', wavelengths='primary', num_rays=3,
-             distribution='line_y', figsize=(10, 4), xlim=None, ylim=None):
-            Visualizes the optical system with specified parameters.
-
+        view: Plots the optical system and rays.
     """
 
-    def __init__(self, optic):
+    def __init__(self, optic, coloring_scheme=None, colormap_name=None):
         self.optic = optic
 
         self.rays = Rays2D(optic)
-        self.system = OpticalSystem(optic, self.rays, projection="2d")
+        self.system = OpticalSystem(
+            optic,
+            self.rays,
+            projection="2d",
+            coloring_scheme=coloring_scheme,
+            colormap_name=colormap_name,
+        )
 
     def view(
         self,
@@ -58,24 +69,28 @@ class OpticViewer:
         title=None,
         reference=None,
     ):
-        """Visualizes the optical system.
+        """Visualizes the optical system in 2D.
+
+        Lens component colors can be influenced by the `coloring_scheme` and
+        `colormap_name` parameters passed during the initialization of this viewer.
 
         Args:
-            fields (str, optional): The fields to be visualized.
-                Defaults to 'all'.
-            wavelengths (str, optional): The wavelengths to be visualized.
-                Defaults to 'primary'.
-            num_rays (int, optional): The number of rays to be visualized.
-                Defaults to 3.
-            distribution (str, optional): The distribution of rays.
-                Defaults to 'line_y'.
-            figsize (tuple, optional): The size of the figure.
-                Defaults to (10, 4).
-            xlim (tuple, optional): The x-axis limits. Defaults to None.
-            ylim (tuple, optional): The y-axis limits. Defaults to None.
-            reference (str, optional): The reference rays to plot. Options
-                include "chief" and "marginal". Defaults to None.
-
+            fields (str or list, optional): Fields to visualize. Can be 'all' or a
+                list of field indices/names. Defaults to 'all'.
+            wavelengths (str or list, optional): Wavelengths to visualize. Can be
+                'primary' or a list of wavelength indices/values. Defaults to 'primary'.
+            num_rays (int, optional): Number of rays per field/wavelength. Defaults to 3.
+            distribution (str, optional): Ray distribution pattern (e.g., 'line_y',
+                'grid'). Defaults to 'line_y'.
+            figsize (tuple[float, float], optional): Figure size (width, height) in
+                inches. Defaults to (10, 4).
+            xlim (tuple[float, float], optional): X-axis limits for the plot.
+                Defaults to None (auto-scaled).
+            ylim (tuple[float, float], optional): Y-axis limits for the plot.
+                Defaults to None (auto-scaled).
+            title (str, optional): Plot title. Defaults to None.
+            reference (str, optional): Reference rays to plot (e.g., "chief",
+                "marginal"). Defaults to None.
         """
         _, ax = plt.subplots(figsize=figsize)
 
@@ -108,30 +123,41 @@ class OpticViewer:
 
 
 class OpticViewer3D:
-    """A class used to visualize optical systems in 3D.
+    """A class used to visualize optical systems in 3D using VTK.
+
+    This viewer facilitates the 3D plotting of optical components and ray traces.
+    Lens coloring can be customized via `coloring_scheme` and `colormap_name`.
 
     Args:
-        optic: The optical system to be visualized.
+        optic (Optic): The `Optic` object to be visualized.
+        coloring_scheme (str, optional): Name of the coloring strategy for lenses.
+            Passed to `OpticalSystem`. Defaults to None (for default coloring).
+        colormap_name (str, optional): Name of the colormap for the chosen
+            coloring strategy. Passed to `OpticalSystem`. Defaults to None.
 
     Attributes:
-        optic: The optical system to be visualized.
-        rays: An instance of Rays3D for ray tracing.
-        system: An instance of OpticalSystem for system representation.
-        ren_win: The vtkRenderWindow object for visualization.
-        iren: The vtkRenderWindowInteractor object for interaction.
+        optic (Optic): The optical system being visualized.
+        rays (Rays3D): 3D ray tracing data associated with the optic.
+        system (OpticalSystem): The 3D representation of the optical system
+            configured with the specified coloring parameters.
+        ren_win (vtkRenderWindow): VTK render window.
+        iren (vtkRenderWindowInteractor): VTK render window interactor.
 
     Methods:
-        view(fields='all', wavelengths='primary', num_rays=24,
-             distribution='ring', figsize=(1200, 800), dark_mode=False):
-            Visualizes the optical system in 3D.
-
+        view: Renders the 3D visualization of the optical system and rays.
     """
 
-    def __init__(self, optic):
+    def __init__(self, optic, coloring_scheme=None, colormap_name=None):
         self.optic = optic
 
         self.rays = Rays3D(optic)
-        self.system = OpticalSystem(optic, self.rays, projection="3d")
+        self.system = OpticalSystem(
+            optic,
+            self.rays,
+            projection="3d",
+            coloring_scheme=coloring_scheme,
+            colormap_name=colormap_name,
+        )
 
         self.ren_win = vtk.vtkRenderWindow()
         self.iren = vtk.vtkRenderWindowInteractor()
@@ -146,24 +172,26 @@ class OpticViewer3D:
         dark_mode=False,
         reference=None,
     ):
-        """Visualizes the optical system in 3D.
+        """Visualizes the optical system in 3D using VTK.
+
+        Lens component colors can be influenced by the `coloring_scheme` and
+        `colormap_name` parameters passed during the initialization of this viewer.
 
         Args:
-            fields (str, optional): The fields to be visualized.
-                Defaults to 'all'.
-            wavelengths (str, optional): The wavelengths to be visualized.
-                Defaults to 'primary'.
-            num_rays (int, optional): The number of rays to be visualized.
+            fields (str or list, optional): Fields to visualize. Can be 'all' or a
+                list of field indices/names. Defaults to 'all'.
+            wavelengths (str or list, optional): Wavelengths to visualize. Can be
+                'primary' or a list of wavelength indices/values. Defaults to 'primary'.
+            num_rays (int, optional): Number of rays per field/wavelength.
                 Defaults to 24.
-            distribution (str, optional): The distribution of rays.
-                Defaults to 'ring'.
-            figsize (tuple, optional): The size of the figure.
-                Defaults to (1200, 800).
-            dark_mode (bool, optional): Whether to use dark mode.
+            distribution (str, optional): Ray distribution pattern (e.g., 'ring',
+                'grid'). Defaults to 'ring'.
+            figsize (tuple[int, int], optional): Window size (width, height) in
+                pixels. Defaults to (1200, 800).
+            dark_mode (bool, optional): If True, uses a dark background theme.
                 Defaults to False.
-            reference (str, optional): The reference rays to plot. Options
-                include "chief" and "marginal". Defaults to None.
-
+            reference (str, optional): Reference rays to plot (e.g., "chief",
+                "marginal"). Defaults to None.
         """
         renderer = vtk.vtkRenderer()
         self.ren_win.AddRenderer(renderer)
