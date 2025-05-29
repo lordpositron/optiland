@@ -46,27 +46,27 @@ class BaseFieldGroup(ABC):
 
     @property
     def x_fields(self):
-        """be.array: x field values"""
+        """be.ndarray: x field values."""
         return be.array([field.x for field in self.fields])
 
     @property
     def y_fields(self):
-        """be.array: y field values"""
+        """be.ndarray: y field values."""
         return be.array([field.y for field in self.fields])
 
     @property
     def max_x_field(self):
-        """be.array: max field in x"""
+        """float: Maximum field value in the x-direction."""
         return be.max(self.x_fields)
 
     @property
     def max_y_field(self):
-        """be.array: max field in y"""
+        """float: Maximum field value in the y-direction."""
         return be.max(self.y_fields)
 
     @property
     def max_field(self):
-        """be.array: max field in radial coordinates"""
+        """float: Maximum radial field value."""
         return be.max(be.sqrt(self.x_fields**2 + self.y_fields**2))
 
     @property
@@ -76,12 +76,12 @@ class BaseFieldGroup(ABC):
 
     @property
     def vx(self):
-        """be.array: vignetting factors in x"""
+        """be.ndarray: Vignetting factors in x for each field."""
         return be.array([field.vx for field in self.fields])
 
     @property
     def vy(self):
-        """be.array: vignetting factors in y"""
+        """be.ndarray: Vignetting factors in y for each field."""
         return be.array([field.vy for field in self.fields])
 
     @abstractmethod
@@ -128,7 +128,8 @@ class BaseFieldGroup(ABC):
         based on the maximum field size.
 
         Returns:
-            list: A list of tuples representing the coordinates of the fields.
+            list[tuple[float, float]]: A list of tuples, where each tuple
+            contains the (normalized_x, normalized_y) coordinates of a field.
 
         """
         max_field = self.max_field
