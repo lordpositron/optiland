@@ -1,57 +1,64 @@
 """Geometric Modulation Transfer Function (MTF) Module.
 
 This module provides the GeometricMTF class for computing the MTF
-of an optical system based on spot diagram data.
+of an optical system based on its geometric Point Spread Function (PSF).
 
 Kramer Harrison, 2025
 """
 
-import matplotlib.pyplot as plt
-
 import optiland.backend as be
-from optiland.analysis import SpotDiagram
+from optiland.mtf.base import BaseMTF
+# from optiland.psf.geometric import GeometricPSF # Moved to method
 
 
-class GeometricMTF(SpotDiagram):
-    """Smith, Modern Optical Engineering 3rd edition, Section 11.9
+class GeometricMTF(BaseMTF):
+    """Geometric Modulation Transfer Function (MTF) class.
 
-    This class represents the Geometric MTF (Modulation Transfer Function) of
-    an optical system. It inherits from the SpotDiagram class.
+    This class calculates and visualizes the Modulation Transfer Function (MTF)
+    of an optic using a geometric PSF. The geometric PSF is essentially a
+    normalized 2D histogram of ray intersection points (spot diagram).
+    The MTF is then derived from this PSF.
+
+    The calculation method is based on the principle that the MTF is related
+    to the Fourier transform of the Line Spread Function (LSF), and the LSF
+    can be obtained by projecting the PSF.
+    See: Smith, Modern Optical Engineering 3rd edition, Section 11.9 for the
+    underlying principles of geometric MTF from spot data.
 
     Args:
-        optic (Optic): The optical system for which to calculate the MTF.
-        fields (str or list, optional): The field points at which to calculate
-            the MTF. Defaults to 'all'.
-        wavelength (str or float, optional): The wavelength at which to
-            calculate the MTF. Defaults to 'primary'.
-        num_rays (int, optional): The number of rays to trace for each field
-            point. Defaults to 100.
-        distribution (str, optional): The distribution of rays within each
-            field point. Defaults to 'uniform'.
+        optic (Optic): The optic for which to calculate the MTF.
+        fields (str or list, optional): The field coordinates for which to
+            calculate the MTF. Defaults to 'all'.
+        wavelength (str or float, optional): The wavelength of light to use
+            for the MTF calculation. Defaults to 'primary'.
+        num_rays (int, optional): The number of rays to trace for the
+            underlying PSF's spot diagram. Defaults to 1000.
+        distribution (str, optional): The distribution of rays for the spot
+            diagram. Defaults to 'uniform'.
+        psf_bins (int, optional): The number of bins along each axis for the
+            2D histogram that forms the PSF. Defaults to 128.
         num_points (int, optional): The number of points to sample in the MTF
             curve. Defaults to 256.
         max_freq (str or float, optional): The maximum frequency to consider
-            in the MTF curve. Defaults to 'cutoff'.
-        scale (bool, optional): Whether to scale the MTF curve using the
-            diffraction-limited curve. Defaults to True.
+            in the MTF curve (cycles/mm). Defaults to 'cutoff', which calculates
+            it based on wavelength and F-number.
+        scale (bool, optional): Whether to scale the MTF curve by the
+            diffraction-limited MTF. Defaults to True.
 
     Attributes:
-        num_points (int): The number of points to sample in the MTF curve.
-        scale (bool): Whether to scale the MTF curve.
-        max_freq (float): The maximum frequency to consider in the MTF curve.
-        freq (be.ndarray): The frequency values for the MTF curve.
-        mtf (list): The MTF data for each field point. Each element is a list
-            containing tangential and sagittal MTF data (`be.ndarray`) for a field.
-        diff_limited_mtf (be.ndarray): The diffraction-limited MTF curve.
-
-    Methods:
-        view(figsize=(12, 4), add_reference=False): Plots the MTF curve.
-        _generate_mtf_data(): Generates the MTF data for each field point.
-        _compute_field_data(xi, v, scale_factor): Computes the MTF data for a
-            given field point.
-        _plot_field(ax, mtf_data, field, color): Plots the MTF data for a
-            given field point.
-
+        num_rays (int): Number of rays for PSF.
+        distribution (str): Ray distribution for PSF.
+        psf_bins (int): Number of bins for PSF histogram.
+        num_points (int): Number of points in the MTF curve.
+        scale (bool): Whether to scale MTF by diffraction limit.
+        max_freq (float): Maximum frequency for MTF plot.
+        psf_results (list[GeometricPSF]): List of GeometricPSF objects,
+            one for each field.
+        mtf (list): List of MTF data. Each item is a list [tangential_mtf,
+            sagittal_mtf] for a field.
+        freq (be.ndarray): Array of frequency points for the MTF curve.
+        diffraction_limited_mtf (be.ndarray): The diffraction-limited MTF curve,
+            used if `scale` is True.
     """
 
     def __init__(
@@ -59,131 +66,226 @@ class GeometricMTF(SpotDiagram):
         optic,
         fields="all",
         wavelength="primary",
-        num_rays=100,
+        num_rays=1000,
         distribution="uniform",
+        psf_bins=128,
         num_points=256,
         max_freq="cutoff",
         scale=True,
     ):
+        self.num_rays = num_rays
+        self.distribution = distribution
+        self.psf_bins = psf_bins
         self.num_points = num_points
         self.scale = scale
 
-        if wavelength == "primary":
-            wavelength = optic.primary_wavelength
+        # Initialize BaseMTF to resolve fields and wavelength
+        super().__init__(optic, fields, wavelength)
+        # self.resolved_fields and self.resolved_wavelength are now set
+
         if max_freq == "cutoff":
             # wavelength must be converted to mm for frequency units cycles/mm
-            self.max_freq = 1 / (wavelength * 1e-3 * optic.paraxial.FNO())
+            # Use resolved_wavelength which is guaranteed to be a float
+            fno = self.optic.paraxial.FNO()  # Consider using working FNO from PSF?
+            if fno == 0:  # Avoid division by zero for afocal systems etc.
+                self.max_freq = 100  # Default fallback
+            else:
+                self.max_freq = 1 / (self.resolved_wavelength * 1e-3 * fno)
+        else:
+            self.max_freq = max_freq
 
-        super().__init__(optic, fields, [wavelength], num_rays, distribution)
+        self.freq = be.linspace(0, self.max_freq, self.num_points)
 
-        self.freq = be.linspace(0, self.max_freq, num_points)
-        self.mtf, self.diff_limited_mtf = self._generate_mtf_data()
+        # _calculate_psf is called by BaseMTF's __init__
+        # self.mtf is then generated by BaseMTF's __init__ calling _generate_mtf_data
 
-    def view(self, figsize=(12, 4), add_reference=False):
-        """Plots the MTF curve.
+        # Store diffraction limit if scaling
+        if self.scale:
+            # Ensure self.freq and self.max_freq are not zero to avoid division by zero
+            safe_max_freq = self.max_freq if self.max_freq > 0 else 1.0
+            ratio = be.clip(self.freq / safe_max_freq, 0.0, 1.0)
+            phi = be.arccos(ratio)
+            self.diffraction_limited_mtf = 2 / be.pi * (phi - be.cos(phi) * be.sin(phi))
+        else:
+            self.diffraction_limited_mtf = be.ones_like(self.freq)
 
-        Args:
-            figsize (tuple, optional): The size of the figure.
-                Defaults to (12, 4).
-            add_reference (bool, optional): Whether to add the diffraction
-                limit reference curve. Defaults to False.
+    def _calculate_psf(self):
+        """Calculates and stores the GeometricPSF for each field.
 
+        This method is called by the `BaseMTF` constructor.
+        It populates `self.psf_results`.
         """
-        _, ax = plt.subplots(figsize=figsize)
+        from optiland.psf.geometric import GeometricPSF # Moved import
 
-        for k, data in enumerate(self.mtf):
-            self._plot_field(ax, data, self.fields[k], color=f"C{k}")
-
-        if add_reference:
-            ax.plot(
-                be.to_numpy(self.freq),
-                be.to_numpy(self.diff_limited_mtf),
-                "k--",
-                label="Diffraction Limit",
+        self.psf_results = []
+        for field_coord in self.resolved_fields:
+            psf_instance = GeometricPSF(
+                optic=self.optic,
+                field=field_coord,
+                wavelength=self.resolved_wavelength,
+                num_rays=self.num_rays,
+                distribution=self.distribution,
+                bins=self.psf_bins,
+                normalize=True,  # Important for MTF calculation consistency
             )
-
-        ax.legend(bbox_to_anchor=(1.05, 0.5), loc="center left")
-        ax.set_xlim([0, be.to_numpy(self.max_freq)])
-        ax.set_ylim([0, 1])
-        ax.set_xlabel("Frequency (cycles/mm)", labelpad=10)
-        ax.set_ylabel("Modulation", labelpad=10)
-        plt.tight_layout()
-        plt.grid(alpha=0.25)
-        plt.show()
+            self.psf_results.append(psf_instance)
 
     def _generate_mtf_data(self):
-        """Generates the MTF data for each field point.
+        """Generates the MTF data from the calculated PSFs.
+
+        This method is called by the `BaseMTF` constructor after `_calculate_psf`.
 
         Returns:
-            tuple: A tuple containing the MTF data for each field point and
-                the scale factor.
-
+            list: A list of MTF data for each field. Each item is a list
+                  [tangential_mtf, sagittal_mtf].
         """
-        if self.scale:
-            phi = be.arccos(self.freq / self.max_freq)
-            scale_factor = 2 / be.pi * (phi - be.cos(phi) * be.sin(phi))
-        else:
-            scale_factor = 1
+        mtf_all_fields = []
+        for psf_instance in self.psf_results:
+            psf_image = psf_instance.psf
+            x_edges = psf_instance.x_edges
+            y_edges = psf_instance.y_edges
 
-        mtf = []  # TODO: add option for polychromatic MTF
-        for field_data in self.data:
-            spot_data_item = field_data[0]
-            xi, yi = spot_data_item.x, spot_data_item.y
-            mtf.append(
-                [
-                    self._compute_field_data(yi, self.freq, scale_factor),
-                    self._compute_field_data(xi, self.freq, scale_factor),
-                ],
-            )
-        return mtf, scale_factor
+            # LSFy (for tangential MTF) is projection of PSF onto y-axis
+            # LSFx (for sagittal MTF) is projection of PSF onto x-axis
+            # PSF shape is (num_y_bins, num_x_bins)
+            lsf_y = be.sum(psf_image, axis=1)  # Sum over x-bins
+            lsf_x = be.sum(psf_image, axis=0)  # Sum over y-bins
 
-    def _compute_field_data(self, xi, v, scale_factor):
-        """Computes the MTF data for a given field point.
+            # Coordinates for LSFs (bin centers)
+            # y_coords are for lsf_y, x_coords are for lsf_x
+            y_coords = (y_edges[:-1] + y_edges[1:]) / 2
+            x_coords = (x_edges[:-1] + x_edges[1:]) / 2
+
+            # Ensure coordinates are sorted for _compute_mtf_from_lsf
+            sort_idx_y = be.argsort(y_coords)
+            y_coords = y_coords[sort_idx_y]
+            lsf_y = lsf_y[sort_idx_y]
+
+            sort_idx_x = be.argsort(x_coords)
+            x_coords = x_coords[sort_idx_x]
+            lsf_x = lsf_x[sort_idx_x]
+
+            # Tangential MTF from LSFy (distribution along y)
+            mtf_tangential = self._compute_mtf_from_lsf(lsf_y, y_coords, self.freq)
+            # Sagittal MTF from LSFx (distribution along x)
+            mtf_sagittal = self._compute_mtf_from_lsf(lsf_x, x_coords, self.freq)
+
+            if self.scale:
+                mtf_tangential *= self.diffraction_limited_mtf
+                mtf_sagittal *= self.diffraction_limited_mtf
+
+            mtf_all_fields.append([mtf_tangential, mtf_sagittal])
+        return mtf_all_fields
+
+    def _compute_mtf_from_lsf(self, lsf, coords, frequencies):
+        """Computes MTF from a Line Spread Function (LSF).
 
         Args:
-            xi (be.ndarray): The coordinate values (x or y) of the field point.
-            v (be.ndarray): The frequency values for the MTF curve.
-            scale_factor (float or be.ndarray): The scale factor for the MTF curve.
+            lsf (be.ndarray): The Line Spread Function values.
+            coords (be.ndarray): The spatial coordinates corresponding to LSF values.
+                These should be in micrometers (µm).
+            frequencies (be.ndarray): The spatial frequencies (cycles/mm) at
+                which to compute MTF.
 
         Returns:
-            be.ndarray: The MTF data for the field point.
-
+            be.ndarray: The MTF values corresponding to the input frequencies.
         """
-        A, edges = be.histogram(xi, bins=self.num_points + 1)
-        x = (edges[1:] + edges[:-1]) / 2
-        dx = x[1] - x[0]
+        # Ensure LSF is normalized (sum of LSF * dx should be 1)
+        # coords are bin centers. dx is spacing between them.
+        if len(coords) < 2:  # Not enough points for dx
+            return be.zeros_like(frequencies)
 
-        mtf = be.copy(be.zeros_like(v))  # copy required to maintain gradient
-        for k in range(len(v)):
-            Ac = be.sum(A * be.cos(2 * be.pi * v[k] * x) * dx) / be.sum(A * dx)
-            As = be.sum(A * be.sin(2 * be.pi * v[k] * x) * dx) / be.sum(A * dx)
+        dx = be.abs(coords[1] - coords[0])  # Assuming uniform spacing for simplicity
+        # More robust: use diff and average, or handle non-uniform.
 
-            mtf[k] = be.sqrt(Ac**2 + As**2)
+        # Normalize LSF such that sum(lsf * dx) = 1 for it to be a probability density
+        lsf_sum_dx = be.sum(lsf * dx)
+        lsf_normalized = (
+            lsf / lsf_sum_dx if lsf_sum_dx > 1e-9 else lsf
+        )  # Avoid division by zero
 
-        return mtf * scale_factor
+        mtf_values = be.zeros_like(frequencies)
 
-    def _plot_field(self, ax, mtf_data, field, color):
-        """Plots the MTF data for a given field point.
+        # Convert coords from µm to mm for consistency with frequencies (cycles/mm)
+        coords_mm = coords * 1e-3
+
+        for i, freq_val in enumerate(frequencies):
+            # MTF is the modulus of the Fourier Transform of the LSF
+            # MTF(ν) = |∫ LSF(x) * exp(-j * 2π * ν * x) dx|
+            # Discrete form: |Σ LSF(x_k) * exp(-j * 2π * ν * x_k) * Δx|
+
+            # Check for backend compatibility with complex numbers
+            if hasattr(be, "exp") and hasattr(be, "sum") and hasattr(be, "sqrt"):
+                # The variable 'angle' was previously calculated here but not used.
+                # We directly compute the cosine and sine components for the FT.
+
+                # Simpler: compute cos and sin terms separately (real/imag parts of FT)
+                # Ac = Σ LSF(x_k) * cos(2π * ν * x_k) * Δx
+                # As = Σ LSF(x_k) * sin(2π * ν * x_k) * Δx
+                # MTF = sqrt(Ac^2 + As^2)
+
+                cos_term = be.cos(2 * be.pi * freq_val * coords_mm)
+                sin_term = be.sin(2 * be.pi * freq_val * coords_mm)
+
+                # Use normalized LSF for Ac and As
+                ac = be.sum(lsf_normalized * cos_term * dx)
+                as_val = be.sum(
+                    lsf_normalized * sin_term * dx
+                )  # Renamed from 'as' to avoid keyword clash
+
+                mtf_values[i] = be.sqrt(ac**2 + as_val**2)
+            else:
+                # Fallback or error if backend doesn't support operations
+                raise NotImplementedError(
+                    "Backend does not support necessary complex ops for MTF."
+                )
+
+        # MTF should be normalized to 1 at zero frequency by definition if LSF is
+        # correctly normalized (i.e., it's a Probability Density Function).
+        # The calculation above should inherently yield MTF(0) = 1.
+        # If MTF(0) is not 1 (e.g., due to numerical precision or if LSF wasn't a
+        # true PDF), re-normalize for safety. This is a common practice.
+        if mtf_values[0] > 1e-9:  # Avoid division by zero
+            mtf_values = mtf_values / mtf_values[0]
+
+        return mtf_values
+
+    def _plot_field_mtf(self, ax, field_index, mtf_field_data, color):
+        """Plots the MTF data for a single field. Called by BaseMTF.view().
 
         Args:
             ax (matplotlib.axes.Axes): The matplotlib axes object.
-            mtf_data (list[be.ndarray]): The MTF data for the field point,
-                containing tangential and sagittal MTF arrays.
-            field (tuple[float, float]): The field point coordinates (Hx, Hy).
-            color (str): The color of the plotted lines.
-
+            field_index (int): The index of the current field in `self.resolved_fields`.
+            mtf_field_data (list): A list containing [tangential_mtf, sagittal_mtf]
+                                   (be.ndarray) for the field.
+            color (str): The color to use for plotting this field.
         """
+        current_field_label_info = self.resolved_fields[field_index]
+        freq_np = be.to_numpy(self.freq)
+
+        # Plot tangential MTF
         ax.plot(
-            be.to_numpy(self.freq),
-            be.to_numpy(mtf_data[0]),
-            label=f"Hx: {field[0]:.1f}, Hy: {field[1]:.1f}, Tangential",
+            freq_np,
+            be.to_numpy(mtf_field_data[0]),  # Tangential data
+            label=(
+                f"Hx: {current_field_label_info[0]:.1f}, "
+                f"Hy: {current_field_label_info[1]:.1f}, Tangential"
+            ),
             color=color,
             linestyle="-",
         )
+        # Plot sagittal MTF
         ax.plot(
-            be.to_numpy(self.freq),
-            be.to_numpy(mtf_data[1]),
-            label=f"Hx: {field[0]:.1f}, Hy: {field[1]:.1f}, Sagittal",
+            freq_np,
+            be.to_numpy(mtf_field_data[1]),  # Sagittal data
+            label=(
+                f"Hx: {current_field_label_info[0]:.1f}, "
+                f"Hy: {current_field_label_info[1]:.1f}, Sagittal"
+            ),
             color=color,
             linestyle="--",
         )
+
+    # The view method is inherited from BaseMTF.
+    # It will call _plot_field_mtf for each field.
+    # It also handles adding the diffraction limit reference if requested.
