@@ -7,7 +7,6 @@ Kramer Harrison, 2025
 """
 
 import optiland.backend as be
-from optiland.analysis import SpotDiagram
 from optiland.psf.base import BasePSF
 
 
@@ -58,6 +57,8 @@ class GeometricPSF(BasePSF):
         self.distribution = distribution
         self.bins = bins
         self.normalize = normalize
+
+        from optiland.analysis import SpotDiagram
 
         self.spot_data = SpotDiagram(
             optic=self.optic,
