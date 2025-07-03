@@ -12,8 +12,8 @@ from .variable import (
     Variable,
 )
 from .operand import ParaxialOperand, AberrationOperand, RayOperand, Operand
-from .optimization import (
-    OptimizationProblem,
+from .optimization import OptimizationProblem
+from .algorithms import (
     OptimizerGeneric,
     LeastSquares,
     DualAnnealing,
