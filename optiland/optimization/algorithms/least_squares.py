@@ -1,17 +1,22 @@
 """
 Module for the Least Squares optimizer class.
 """
+
 import warnings
+
 from scipy import optimize
+
 import optiland.backend as be
-# Assuming OptimizationProblem will be accessible from ..problem or similar
+
 from ..optimization import OptimizationProblem
 from .optimizer_generic import OptimizerGeneric
+
 
 class LeastSquares(OptimizerGeneric):
     """
     Optimizer that uses a SciPy least squares method.
     """
+
     def __init__(self, problem: OptimizationProblem):
         super().__init__(problem)
 
@@ -82,7 +87,7 @@ class LeastSquares(OptimizerGeneric):
         """
 
         x0_scaled_values = [var.value for var in self.problem.variables]
-        self._x.append(list(x0_scaled_values)) # Store for undo
+        self._x.append(list(x0_scaled_values))  # Store for undo
         x0_numpy = be.to_numpy(x0_scaled_values)
 
         current_bounds_scaled = tuple([var.bounds for var in self.problem.variables])
@@ -129,13 +134,13 @@ class LeastSquares(OptimizerGeneric):
         if (
             method_choice == "lm"
         ):  # 'lm' was originally chosen and conditions for switching were not met
-            actual_bounds_for_scipy = (-be.inf, be.inf) # lm ignores bounds
+            actual_bounds_for_scipy = (-be.inf, be.inf)  # lm ignores bounds
         else:
             # method_choice is 'trf' or 'dogbox' (either originally or
             # after adjustment)
             actual_bounds_for_scipy = (lower_bounds_np, upper_bounds_np)
             # Ensure x0 is strictly within bounds for TRF/Dogbox
-            eps = be.finfo(be.float64).eps # Machine epsilon for float64
+            eps = be.finfo(be.float64).eps  # Machine epsilon for float64
             for i in range(x0_numpy.shape[0]):
                 low_b = actual_bounds_for_scipy[0][i]
                 upp_b = actual_bounds_for_scipy[1][i]
@@ -149,8 +154,7 @@ class LeastSquares(OptimizerGeneric):
                 if x0_numpy[i] < low_b and low_b != -be.inf:
                     x0_numpy[i] = low_b
 
-
-        scipy_verbose_level = 1 if disp else 0 # SciPy verbose levels are 0, 1, 2
+        scipy_verbose_level = 1 if disp else 0
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=RuntimeWarning)
@@ -159,9 +163,9 @@ class LeastSquares(OptimizerGeneric):
                 x0_numpy,
                 method=method_choice,
                 bounds=actual_bounds_for_scipy,
-                max_nfev=maxiter, # max_nfev is the correct param for least_squares
+                max_nfev=maxiter,  # max_nfev is the correct param for least_squares
                 verbose=scipy_verbose_level,
-                ftol=tol, # ftol is for change in sum of squares
+                ftol=tol,  # ftol is for change in sum of squares
             )
 
         # Update Optiland variables with the solution found by SciPy

@@ -1,12 +1,15 @@
 """
 Module for the generic optimizer class.
 """
+
 import warnings
+
 from scipy import optimize
+
 import optiland.backend as be
-# Assuming OptimizationProblem will be accessible from ..problem or similar
-# For now, let's use a placeholder or expect it to be in ..optimization
+
 from ..optimization import OptimizationProblem
+
 
 class OptimizerGeneric:
     """Generic optimizer class for solving optimization problems.
