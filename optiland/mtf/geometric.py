@@ -8,7 +8,6 @@ Kramer Harrison, 2025
 
 import optiland.backend as be
 from optiland.mtf.base import BaseMTF
-# from optiland.psf.geometric import GeometricPSF # Moved to method
 
 
 class GeometricMTF(BaseMTF):
@@ -115,7 +114,7 @@ class GeometricMTF(BaseMTF):
         This method is called by the `BaseMTF` constructor.
         It populates `self.psf_results`.
         """
-        from optiland.psf.geometric import GeometricPSF # Moved import
+        from optiland.psf.geometric import GeometricPSF  # Moved import
 
         self.psf_results = []
         for field_coord in self.resolved_fields:

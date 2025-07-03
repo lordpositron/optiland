@@ -7,7 +7,6 @@ Kramer Harrison, 2025
 """
 
 import optiland.backend as be
-# from optiland.analysis import SpotDiagram # Moved to method
 from optiland.psf.base import BasePSF
 
 
@@ -59,7 +58,7 @@ class GeometricPSF(BasePSF):
         self.bins = bins
         self.normalize = normalize
 
-        from optiland.analysis import SpotDiagram # Moved import
+        from optiland.analysis import SpotDiagram  # Moved import
 
         # Store spot data for potential use in _get_psf_units or other methods
         self.spot_data = SpotDiagram(
@@ -114,10 +113,6 @@ class GeometricPSF(BasePSF):
         x_min, x_max = be.percentile(x_coords, [0.1, 99.9])
         y_min, y_max = be.percentile(y_coords, [0.1, 99.9])
 
-        # Ensure the range is symmetric around zero if possible, or at least covers the data well
-        # This helps in keeping the PSF centered, assuming the spot is somewhat centered.
-        # A more robust way might be to center it based on the chief ray or mean spot position.
-        # For now, let's use the data range.
         hist_range = [[x_min, x_max], [y_min, y_max]]
 
         psf_image, x_edges, y_edges = be.histogram2d(
