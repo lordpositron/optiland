@@ -7,6 +7,7 @@ Kramer Harrison, 2025
 """
 
 import optiland.backend as be
+from optiland.analysis import SpotDiagram
 from optiland.psf.base import BasePSF
 
 
@@ -46,7 +47,7 @@ class GeometricPSF(BasePSF):
         optic,
         field,
         wavelength,
-        num_rays=1000,
+        num_rays=128,
         distribution="uniform",
         bins=128,
         normalize=True,
@@ -58,16 +59,12 @@ class GeometricPSF(BasePSF):
         self.bins = bins
         self.normalize = normalize
 
-        from optiland.analysis import SpotDiagram  # Moved import
-
-        # Store spot data for potential use in _get_psf_units or other methods
         self.spot_data = SpotDiagram(
             optic=self.optic,
             fields=[self.fields[0]],  # BasePSF stores fields as a list
             wavelengths=[self.wavelengths[0]],  # BasePSF stores wavelengths as a list
             num_rings=self.num_rays,  # Pass num_rays as num_rings
             distribution=self.distribution,
-            # coordinates can be left as default 'local' for SpotDiagram
         )
 
         self.psf, self.x_edges, self.y_edges = self._compute_psf()
@@ -101,9 +98,7 @@ class GeometricPSF(BasePSF):
         # spot_data.data is a list of lists (one per field, one per wavelength)
         # For GeometricPSF, we have one field and one wavelength.
         spot_field_data = self.spot_data.data[0]
-        spot_wavelength_data = spot_field_data[
-            0
-        ]  # Access the first (and only) wavelength
+        spot_wavelength_data = spot_field_data[0]  # Access first (& only) wavelength
 
         x_coords = spot_wavelength_data.x
         y_coords = spot_wavelength_data.y
@@ -129,11 +124,6 @@ class GeometricPSF(BasePSF):
                 psf_image = psf_image / psf_sum
             # If sum is zero (e.g. no rays hit), it remains an array of zeros.
 
-        # Ensure PSF is centered for visualization if BasePSF assumes it
-        # The histogram is based on data range, so it should be okay.
-        # BasePSF visualization finds bounds and zooms, so exact centering here
-        # might not be strictly necessary if the data itself is centered.
-
         return psf_image, x_edges, y_edges
 
     def _get_psf_units(self, image_data_shape):
@@ -158,13 +148,6 @@ class GeometricPSF(BasePSF):
             total width and total height of the *original* PSF image area,
             in micrometers (assuming spot diagram coordinates are in µm).
         """
-        # The spot diagram coordinates are typically in micrometers.
-        # x_edges and y_edges store the boundaries of the bins.
-        # The total extent is the difference between the last and first edge.
-
-        # BasePSF.view calls this with psf_zoomed.shape.
-        # We need to provide the extent that corresponds to that psf_zoomed.
-
         # Physical width of one original bin:
         dx_bin = (self.x_edges[1] - self.x_edges[0]) if len(self.x_edges) > 1 else 0
         dy_bin = (self.y_edges[1] - self.y_edges[0]) if len(self.y_edges) > 1 else 0
@@ -193,6 +176,3 @@ class GeometricPSF(BasePSF):
         if self.psf is None:
             raise RuntimeError("PSF has not been computed.")
         return be.max(self.psf)
-
-    # Note: The _get_working_FNO method is inherited from BasePSF.
-    # The view method is inherited from BasePSF.
