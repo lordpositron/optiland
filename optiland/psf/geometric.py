@@ -127,22 +127,14 @@ class GeometricPSF(BasePSF):
 
         return psf_image, x_edges, y_edges
 
-    def _get_psf_units(self, image_data_shape):
+    def _get_psf_units(self, image_data):
         """Calculates the physical extent (units) of the PSF image for plotting.
 
         This method is called by `BasePSF.view()` to determine axis labels.
         It uses the bin edges from the histogram computation.
 
         Args:
-            image_data_shape (tuple): The shape of the PSF image data
-                (often a zoomed/cropped version from `BasePSF.view`). This
-                argument is present to match the signature in `FFTPSF`, but
-                for `GeometricPSF`, the extent is directly derived from
-                `self.x_edges` and `self.y_edges` corresponding to the
-                *original, unzoomed* PSF data. The `BasePSF.view` method
-                handles the zooming and passes the zoomed image shape.
-                Here, we return the extent of the *original* data from which
-                the `image_data_shape` was derived.
+            image_data (be.ndarray): The PSF image data
 
         Returns:
             tuple[float, float]: A tuple containing the physical
@@ -154,8 +146,8 @@ class GeometricPSF(BasePSF):
         dy_bin = (self.y_edges[1] - self.y_edges[0]) if len(self.y_edges) > 1 else 0
 
         # extent of the passed image_data (which is psf_zoomed from BasePSF)
-        x_extent = image_data_shape[1] * be.to_numpy(dx_bin)
-        y_extent = image_data_shape[0] * be.to_numpy(dy_bin)
+        x_extent = image_data.shape[1] * be.to_numpy(dx_bin)
+        y_extent = image_data.shape[0] * be.to_numpy(dy_bin)
 
         return x_extent, y_extent
 
