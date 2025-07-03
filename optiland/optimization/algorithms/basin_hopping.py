@@ -74,28 +74,15 @@ class BasinHopping(OptimizerGeneric):
         x0_numpy = be.to_numpy(x0_backend)
 
         # Basin-hopping itself doesn't take a 'bounds' argument.
-        # Bounds must be handled by the local minimizer via 'minimizer_kwargs'.
-        # Check if problem has bounds defined, and if so, warn if not handled by
-        # minimizer_kwargs
         problem_bounds = tuple([var.bounds for var in self.problem.variables])
         has_problem_bounds = not all(
             b[0] is None and b[1] is None for b in problem_bounds
         )
+        if has_problem_bounds:
+            raise ValueError("Basin-hopping does not accept bounds.")
 
         if minimizer_kwargs is None:
             minimizer_kwargs = {}
-
-        if has_problem_bounds and "bounds" not in minimizer_kwargs:
-            print(
-                "Warning: BasinHopping is used and variables have bounds, "
-                "but 'bounds' are not specified in 'minimizer_kwargs'. "
-                "The local minimizer might not respect these bounds unless "
-                "its default behavior or other settings in minimizer_kwargs "
-                "handle them."
-            )
-        elif not has_problem_bounds and "bounds" in minimizer_kwargs:
-            # If bounds are only in minimizer_kwargs, that's fine.
-            pass
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=RuntimeWarning)

@@ -49,7 +49,7 @@ class TestBasinHopping:
     def test_minimizer_kwargs_with_bounds(self):
         lens = Microscope20x()
         problem = OptimizationProblem()
-        min_b, max_b = 30.0, 50.0 # Define bounds for the local search
+        min_b, max_b = 30.0, 50.0  # Define bounds for the local search
 
         # Set initial radius outside these bounds to see if local minimizer respects them
         lens.surface_group.surfaces[1].geometry.radius = 20.0
@@ -64,7 +64,7 @@ class TestBasinHopping:
 
         minimizer_options = {'method': 'L-BFGS-B', 'bounds': [(min_b, max_b)]}
 
-        result = optimizer.optimize(niter=5, minimizer_kwargs=minimizer_options, disp=False)
+        result = optimizer.optimize(niter=10, minimizer_kwargs=minimizer_options, disp=False)
 
         assert result.success # Local minimizations might have succeeded
         optimized_radius = lens.surface_group.surfaces[1].geometry.radius
@@ -72,6 +72,7 @@ class TestBasinHopping:
         # Check if the final radius is within the bounds specified for the local minimizer
         # This assumes the global step didn't jump out and the final solution reported
         # is from a successful local minimization that respected bounds.
+        print(f"Optimized radius: {optimized_radius}")
         assert min_b <= optimized_radius <= max_b + 1e-9 # Add tolerance for boundary conditions
 
     def test_warning_if_problem_has_bounds_but_minimizer_doesnt(self, capsys):
