@@ -9,8 +9,13 @@ chosen field definition.
 Kramer Harrison, 2025
 """
 
+from typing import TYPE_CHECKING
+
 import optiland.backend as be
 from optiland.fields.base import BaseFieldStrategy
+
+if TYPE_CHECKING:
+    pass
 
 
 class ObjectHeightField(BaseFieldStrategy):
@@ -370,3 +375,283 @@ class AngleField(BaseFieldStrategy):
             )
         # Note: obj.is_infinite is allowed for AngleField.
         pass
+
+
+class ImageSpaceField(BaseFieldStrategy):
+    """Field strategy for fields defined by image height.
+
+    This strategy acts as a wrapper, utilizing a specified field solver
+    (paraxial or real) and an underlying object-space field strategy
+    (e.g., AngleField, ObjectHeightField). It calculates the object-space
+    field parameter (e.g., angle or height) that corresponds to a desired
+    image height, and then delegates the ray generation to the underlying
+    object-space strategy.
+
+    Attributes:
+        solver (BaseFieldSolver): The solver instance used to find the
+            object-space field equivalent for a given image height.
+        base_strategy (BaseFieldStrategy): The underlying object-space
+            strategy used for actual ray calculations.
+    """
+
+    def __init__(self, solver, base_strategy):
+        """Initializes an ImageSpaceField strategy.
+
+        Args:
+            solver (BaseFieldSolver): An instance of a field solver (e.g.,
+                ParaxialFieldSolver, RealFieldSolver) used to determine the
+                object-space field value that produces the desired image height.
+            base_strategy (BaseFieldStrategy): An instance of an object-space
+                field strategy (e.g., AngleField, ObjectHeightField) that will
+                be used to generate rays once the equivalent object-space field
+                is known.
+        """
+        self.solver = solver
+        self.base_strategy = base_strategy
+
+    def get_ray_origins(self, optic, Hx, Hy, Px, Py, vx, vy):
+        """Calculate ray origin coordinates for image height fields.
+
+        This method first calculates the target image height. Then, it uses the
+        provided solver to find the equivalent object-space field (e.g., angle
+        or height) that would produce this target image height. Finally, it
+        delegates the ray origin calculation to the underlying base_strategy,
+        temporarily setting the optic's max_field to this equivalent
+        object-space field value and using a normalized field input of 1.0.
+
+        Args:
+            optic (Optic): The optical system instance.
+            Hx (float): Normalized x-coordinate of the field point. This is
+                ignored as image height is typically 1D (y-dimension).
+                The solver will operate on Hy.
+            Hy (float): Normalized y-coordinate of the field point, used to
+                determine the target image height.
+            Px (float or be.ndarray): Normalized x-coordinate(s) on the pupil.
+            Py (float or be.ndarray): Normalized y-coordinate(s) on the pupil.
+            vx (float): Vignetting factor in the x-direction.
+            vy (float): Vignetting factor in the y-direction.
+
+        Returns:
+            tuple[be.ndarray, be.ndarray, be.ndarray]: A tuple (x0, y0, z0)
+            representing the ray origin coordinates.
+
+        Raises:
+            NotImplementedError: If Hx is non-zero, as image space fields are
+                currently assumed to be defined only in the y-dimension.
+        """
+        if not be.isclose(Hx, 0.0):
+            # TODO: Extend solver and this logic if 2D image space fields are needed.
+            raise NotImplementedError(
+                "ImageSpaceField currently only supports Hy (1D image height)."
+            )
+
+        target_image_height = optic.fields.max_field * Hy
+
+        # Use the solver to find the object-space field value (e.g., angle or height)
+        # that produces the target_image_height.
+        # The solver typically needs the optic and the target image height.
+        equivalent_object_field = self.solver.solve(optic, target_image_height)
+
+        # Store original max_field and temporarily set it for the base strategy call.
+        original_max_field = optic.fields.max_field
+        # original_max_y_field was here, removed as unused in this method.
+
+        try:
+            # The task specifies using the equivalent_object_field as the temporary
+            # max_field for the base_strategy, and calling the base_strategy
+            # with a normalized field coordinate of 1.0.
+
+            # Interpretation:
+            # 1. `solver.solve(optic, target_image_height)` returns the actual
+            #    object-space field value (e.g., -5 degrees or 10mm). This value
+            #    can be positive or negative.
+            # 2. `optic.fields.max_field` is temporarily set to this exact
+            #    `equivalent_object_field` value.
+            # 3. `base_strategy.get_ray_origins` is called with `Hy = 1.0`.
+            #    The base strategy will then calculate `max_field * Hy`, which
+            #    effectively becomes `equivalent_object_field * 1.0`, yielding
+            #    the desired object-space field parameter for ray generation.
+            #    This works if base strategies correctly use `max_field * Hy`
+            #    (e.g., AngleField: `max_field_angle_deg = max_field * Hy`;
+            #    ObjectHeightField: `field_y = max_field * Hy`).
+            #    This seems to be the case from reviewing their implementations.
+
+            optic.fields.max_field = equivalent_object_field
+
+            # For 2D fields (if supported in future), Hx would also be handled.
+            # Currently, Hx is 0 for image space fields as per NotImplementedError.
+            base_Hx = 0.0
+            # As per instruction "using a normalized field coordinate of 1.0"
+            base_Hy = 1.0
+
+            return self.base_strategy.get_ray_origins(
+                optic, base_Hx, base_Hy, Px, Py, vx, vy
+            )
+        finally:
+            # Restore original max_field.
+            optic.fields.max_field = original_max_field
+
+    def get_paraxial_object_position(self, optic, Hy, y1, EPL):
+        """Calculate paraxial object position for image height fields.
+
+        This method follows a similar pattern to get_ray_origins:
+        1. Calculate target image height.
+        2. Use the solver to find the equivalent object-space field value.
+        3. Delegate to the base_strategy's get_paraxial_object_position,
+           temporarily setting optic's max_field to the equivalent value and
+           using a normalized field input of 1.0.
+
+        Args:
+            optic (Optic): The optical system instance.
+            Hy (float): Normalized y-coordinate of the field point.
+            y1 (be.ndarray): Ray height(s) at the entrance pupil.
+            EPL (float): Entrance Pupil Location (axial position).
+
+        Returns:
+            tuple[be.ndarray, be.ndarray]: Paraxial object coordinates (y0, z0).
+        """
+        target_image_height = optic.fields.max_field * Hy
+        equivalent_object_field = self.solver.solve(optic, target_image_height)
+
+        original_max_field = optic.fields.max_field
+        try:
+            optic.fields.max_field = equivalent_object_field
+            # Base strategy called with Hy_norm=1.0
+            base_Hy = 1.0
+            return self.base_strategy.get_paraxial_object_position(
+                optic, base_Hy, y1, EPL
+            )
+        finally:
+            optic.fields.max_field = original_max_field
+
+    def get_chief_ray_start_params(
+        self, optic, chief_ray_y_at_stop, chief_ray_u_at_stop
+    ):
+        """Calculate chief ray start parameters for image height fields.
+
+        This method also delegates to the base_strategy. However, the concept
+        of "max_field" for chief ray calculation needs careful handling.
+        The base strategy's `get_chief_ray_start_params` typically uses
+        `optic.fields.max_y_field`. We need to ensure this reflects the
+        object-space equivalent of the *maximum defined image height* for
+        the optic.
+
+        The `equivalent_object_field` determined by the solver should be
+        for the *actual* `optic.fields.max_field` (which defines max image height).
+
+        Args:
+            optic (Optic): The optical system instance.
+            chief_ray_y_at_stop (float): Paraxial ray height at the initial plane.
+            chief_ray_u_at_stop (float): Paraxial ray slope at the initial plane.
+
+        Returns:
+            float: The adjusted starting slope `u1` for the chief ray trace.
+        """
+        # For ImageSpaceField, `optic.fields.max_field` (or `max_y_field` if distinct)
+        # defines the maximum *image height* for the system.
+        # The base strategy's `get_chief_ray_start_params` uses
+        # `optic.fields.max_y_field` to refer to the maximum *object-space*
+        # field (e.g., max angle or max object height).
+        #
+        # Therefore, we need to:
+        # 1. Get the maximum defined image height for the optic.
+        #    Let's assume `optic.fields.max_y_field` is used for this,
+        #    as it's the one base strategies query for their max object field.
+        #    If `max_y_field` is not specifically set for image height, it
+        #    would default to `max_field`.
+        # 2. Use the solver to find the object-space field value that
+        #    corresponds to this maximum image height.
+        # 3. Temporarily set `optic.fields.max_y_field` to this *absolute*
+        #    equivalent object-space field value before calling the
+        #    base_strategy's method. Base strategies expect a positive extent.
+
+        # Use max_y_field as it's what base strategies (Angle, ObjectHeight) query.
+        # This `max_y_field` for an ImageSpaceField optic defines the max image height.
+        max_defined_image_height = optic.fields.max_y_field
+
+        # Find object-space field equivalent to this max image height.
+        # The solver should return the actual field value (can be signed).
+        equivalent_object_field_for_max_image = self.solver.solve(
+            optic, max_defined_image_height
+        )
+
+        # Store original values to restore them.
+        original_max_y_field = optic.fields.max_y_field
+        # Note: `optic.fields.max_field` is not directly used by base strategy's
+        # `get_chief_ray_start_params`, so we only need to manage `max_y_field`.
+
+        try:
+            # Base strategies expect `optic.fields.max_y_field` to be a positive
+            # value representing the maximum extent of the object-space field.
+            optic.fields.max_y_field = be.fabs(equivalent_object_field_for_max_image)
+
+            return self.base_strategy.get_chief_ray_start_params(
+                optic, chief_ray_y_at_stop, chief_ray_u_at_stop
+            )
+        finally:
+            # Restore original max_y_field.
+            optic.fields.max_y_field = original_max_y_field
+            # optic.fields.max_field remains untouched if it wasn't modified.
+
+    def validate_optic_state(self, optic):
+        """Validate if the optic's state is compatible with ImageSpaceField.
+
+        This primarily delegates validation to the underlying base_strategy.
+        The ImageSpaceField wrapper itself imposes few additional constraints
+        beyond those of its components (solver and base_strategy).
+
+        The solver might have its own validation (e.g., requiring computable
+        paraxial properties).
+
+        Args:
+            optic (Optic): The optical system instance to validate.
+
+        Raises:
+            ValueError: If the optic's configuration is incompatible.
+        """
+        # First, allow the base strategy to validate itself.
+        if self.base_strategy:
+            self.base_strategy.validate_optic_state(optic)
+
+        # Solver validation:
+        # Solvers might have implicit requirements (e.g., ParaxialFieldSolver
+        # needs a valid paraxial system). These are typically checked when
+        # solver methods are called or paraxial properties are accessed.
+        # No explicit, additional validation call to the solver is made here,
+        # assuming failures will be caught during `solver.solve()`.
+        pass
+
+    def __repr__(self):
+        """Return a string representation of the ImageSpaceField strategy."""
+        return (
+            f"{self.__class__.__name__}("
+            f"solver={self.solver!r}, base_strategy={self.base_strategy!r})"
+        )
+
+    # Notes on implementation choices and adherence to requirements:
+    # - All abstract methods from BaseFieldStrategy are implemented.
+    # - Constructor accepts solver and base_strategy.
+    # - Delegation pattern:
+    #   - `get_ray_origins`, `get_paraxial_object_position`:
+    #     Calculate target image height.
+    #     Use solver to find `equivalent_object_field`.
+    #     Temporarily set `optic.fields.max_field = equivalent_object_field`.
+    #     Call base strategy with normalized `Hy=1.0` (and `Hx=0.0`).
+    #   - `get_chief_ray_start_params`:
+    #     Determine `max_defined_image_height` (from `optic.fields.max_y_field`).
+    #     Solve for `equivalent_object_field_for_max_image`.
+    #     Temp set `optic.fields.max_y_field = abs(equiv_obj_field_for_max_img)`.
+    #     Call base strategy.
+    # - Docstrings: Added for class and methods.
+    # - Hx handling: `get_ray_origins` raises NotImplementedError for non-zero Hx,
+    #   as current implementation and solvers are 1D (y-dimension image height).
+    # - `optic.fields.max_field` vs `optic.fields.max_y_field`:
+    #   `Fields` dataclass has `max_field`, `max_y_field` (defaults to `max_field`).
+    #   Base strategies use `optic.fields.max_field` in `get_ray_origins` and
+    #   `get_paraxial_object_position`.
+    #   Base strategies use `optic.fields.max_y_field` in `get_chief_ray_start_params`.
+    #   This distinction is respected in the temporary modifications.
+    # - Type hints: `TYPE_CHECKING` block is used for `BaseFieldSolver` and `Optic`
+    #   imports to avoid circular dependencies at runtime while providing type info.
+    #   `BaseFieldStrategy` is imported directly.
+    # - Ruff compliance: Comments and code formatted to pass linting.

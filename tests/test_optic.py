@@ -100,12 +100,11 @@ class TestOptic:
         # Test with angle type
         self.optic.set_field_type("angle")
         self.optic.add_field(2.0, 1.0)
-        assert len(self.optic.fields.fields) == 2 # Now two fields
+        assert len(self.optic.fields.fields) == 2  # Now two fields
         current_field_angle = self.optic.fields.fields[1]
         assert current_field_angle.y == 2.0
         assert current_field_angle.x == 1.0
         assert current_field_angle.field_type == "angle"
-
 
     def test_add_wavelength(self, set_test_backend):
         self.optic.add_wavelength(0.55, is_primary=True)
@@ -120,26 +119,103 @@ class TestOptic:
         assert self.optic.aperture.value == 5.0
 
     def test_set_field_type(self, set_test_backend):
+        from optiland.fields.solvers import ParaxialFieldSolver, RealFieldSolver
         from optiland.fields.strategies import (
             AngleField,
+            ImageSpaceField,
             ObjectHeightField,
         )
 
-        # Minimal optic setup for validation
-        self.optic.add_surface(index=0, radius=be.inf, thickness=10) # Finite obj
-        self.optic.add_surface(index=1, radius=be.inf, thickness=0)  # Image
+        # --- Test "angle" field type ---
+        # Minimal optic setup for "angle" (can be infinite or finite object)
+        self.optic.reset()  # Start fresh for each type
+        self.optic.add_surface(index=0, radius=be.inf, thickness=be.inf)  # Infinite obj
+        self.optic.add_surface(index=1, radius=10, thickness=5, material="N-BK7")
+        self.optic.add_surface(index=2, radius=-10, thickness=50)  # Image after this
+        self.optic.add_surface(index=3)  # Image surface
+        self.optic.set_aperture("EPD", 10)
+        self.optic.add_wavelength(0.55, is_primary=True)
 
         self.optic.set_field_type("angle")
         assert isinstance(self.optic.field_type, AngleField)
+        # Add a field to make it fully usable
+        self.optic.fields.max_field = 10  # degrees
+        self.optic.add_field(y=1.0)  # Max field
 
-        # Ensure optic state is valid for "object_height" (e.g., finite object).
-        # The current setup (thickness=10 for surface 0) makes it finite.
-        if self.optic.object_surface:
-             self.optic.object_surface.is_infinite = False # Explicitly finite
+        # --- Test "object_height" field type ---
+        self.optic.reset()  # Start fresh
+        self.optic.add_surface(index=0, radius=be.inf, thickness=50)  # Finite obj
+        self.optic.add_surface(index=1, radius=10, thickness=5, material="N-BK7")
+        self.optic.add_surface(index=2, radius=-10, thickness=50)
+        self.optic.add_surface(index=3)  # Image surface
+        self.optic.set_aperture("EPD", 10)
+        self.optic.add_wavelength(0.55, is_primary=True)
 
         self.optic.set_field_type("object_height")
         assert isinstance(self.optic.field_type, ObjectHeightField)
+        self.optic.fields.max_field = 5  # mm
+        self.optic.add_field(y=1.0)  # Max field
 
+        # --- Test "paraxial_image_height" field type (infinite object) ---
+        self.optic.reset()
+        self.optic.add_surface(index=0, radius=be.inf, thickness=be.inf)  # Infinite
+        self.optic.add_surface(
+            index=1, radius=20, thickness=5, material="N-BK7", is_stop=True
+        )
+        self.optic.add_surface(index=2, radius=-20, thickness=38)  # Approx focus
+        self.optic.add_surface(index=3)  # Image
+        self.optic.set_aperture("EPD", 10)
+        self.optic.add_wavelength(0.55, is_primary=True)
+        self.optic.update()  # Update paraxial properties for solver
+
+        self.optic.set_field_type("paraxial_image_height")
+        assert isinstance(self.optic.field_type, ImageSpaceField)
+        assert isinstance(self.optic.field_type.solver, ParaxialFieldSolver)
+        assert isinstance(self.optic.field_type.base_strategy, AngleField)  # Inf obj
+        self.optic.fields.max_field = 2.5  # Target paraxial image height in mm
+        self.optic.add_field(y=0.5)  # 0.5 norm field -> 1.25mm target image height
+        # Basic check: try to trace a ray (more detailed checks later)
+        # This implicitly tests if get_ray_origins works.
+        # Note: this test doesn't verify the *correctness* of the image height,
+        # only that the setup doesn't crash and tracing is possible.
+        try:
+            _ = self.optic.trace(
+                Hx=0, Hy=0.5, wavelength=self.optic.primary_wavelength, num_rays=3
+            )
+        except Exception as e:
+            pytest.fail(
+                f"Ray trace failed for paraxial_image_height (infinite obj): {e}"
+            )
+
+        # --- Test "real_image_height" field type (finite object) ---
+        self.optic.reset()
+        self.optic.add_surface(index=0, radius=be.inf, thickness=100)  # Finite obj
+        self.optic.add_surface(
+            index=1, radius=30, thickness=6, material="N-SF5", is_stop=True
+        )
+        self.optic.add_surface(index=2, radius=-28, thickness=55)  # Approx focus
+        self.optic.add_surface(index=3)  # Image
+        self.optic.set_aperture("EPD", 12)
+        self.optic.add_wavelength(0.6, is_primary=True)
+        self.optic.update()
+
+        self.optic.set_field_type("real_image_height")
+        assert isinstance(self.optic.field_type, ImageSpaceField)
+        assert isinstance(self.optic.field_type.solver, RealFieldSolver)
+        # Finite object implies ObjectHeightField as base
+        assert isinstance(self.optic.field_type.base_strategy, ObjectHeightField)
+        self.optic.fields.max_field = 3.0  # Target real image height in mm
+        self.optic.add_field(y=0.7)
+        try:
+            _ = self.optic.trace(
+                Hx=0, Hy=0.7, wavelength=self.optic.primary_wavelength, num_rays=3
+            )
+        except Exception as e:
+            pytest.fail(f"Ray trace failed for real_image_height (finite obj): {e}")
+
+    # More detailed integration tests for image space fields focusing on correctness
+    # would ideally go into a new test class or file, e.g., TestImageSpaceFields.
+    # For now, these basic setup and trace checks are within TestOptic.set_field_type.
 
     def test_set_comment(self, set_test_backend):
         self.optic.add_surface(
@@ -244,7 +320,7 @@ class TestOptic:
             thickness=10,
         )
         surface_number = 1
-        material_post = MaterialFactory._configure_post_material('N-BK7')
+        material_post = MaterialFactory._configure_post_material("N-BK7")
         self.optic.set_material(material_post, surface_number)
         surface = self.optic.surface_group.surfaces[surface_number]
         assert surface.material_post == material_post
@@ -329,15 +405,15 @@ class TestOptic:
 
     def test_update_paraxial(self, set_test_backend):
         lens = HeliarLens()
-        lens.update_paraxial() # Ensures method runs without error
+        lens.update_paraxial()  # Ensures method runs without error
 
     def test_update(self, set_test_backend):
         lens = HeliarLens()
-        lens.update() # Ensures method runs without error
+        lens.update()  # Ensures method runs without error
 
     def test_image_solve(self, set_test_backend):
         lens = HeliarLens()
-        lens.image_solve() # Ensures method runs without error
+        lens.image_solve()  # Ensures method runs without error
 
     def test_trace(self, set_test_backend):
         lens = HeliarLens()
@@ -351,17 +427,17 @@ class TestOptic:
 
     def test_trace_invalid_field(self, set_test_backend):
         lens = HeliarLens()
-        with pytest.raises(ValueError): # Field out of bounds
+        with pytest.raises(ValueError):  # Field out of bounds
             lens.trace(0.0, 2.0, 0.55)
 
     def test_trace_generic_invalid_field(self, set_test_backend):
         lens = HeliarLens()
-        with pytest.raises(ValueError): # Field out of bounds
+        with pytest.raises(ValueError):  # Field out of bounds
             lens.trace_generic(0.0, 0.0, 0.0, 2.0, 0.55)
 
     def test_trace_generic_invalid_pupil(self, set_test_backend):
         lens = HeliarLens()
-        with pytest.raises(ValueError): # Pupil out of bounds
+        with pytest.raises(ValueError):  # Pupil out of bounds
             lens.trace_generic(0.0, 5.0, 0.0, 0.0, 0.55)
 
     def test_trace_polarized(self, set_test_backend):
@@ -384,7 +460,7 @@ class TestOptic:
 
     def test_total_track_error(self, set_test_backend):
         lens = HeliarLens()
-        lens.surface_group.surfaces = [lens.surface_group.surfaces[0]] # Invalid
+        lens.surface_group.surfaces = [lens.surface_group.surfaces[0]]  # Invalid
         with pytest.raises(ValueError):
             _ = lens.total_track
 
@@ -398,12 +474,12 @@ class TestOptic:
 
     def test_polarization_state_error(self, set_test_backend):
         lens = HeliarLens()
-        lens.polarization = "invalid_state_string" # Invalid direct assignment
+        lens.polarization = "invalid_state_string"  # Invalid direct assignment
         with pytest.raises(ValueError):
             _ = lens.polarization_state
 
     def test_to_dict(self, set_test_backend):
-        lens = HeliarLens() # Default field_type is "angle"
+        lens = HeliarLens()  # Default field_type is "angle"
         lens.set_apodization(GaussianApodization(sigma=0.5))
         lens_dict = lens.to_dict()
         assert isinstance(lens_dict, dict)
@@ -416,7 +492,7 @@ class TestOptic:
     def test_from_dict(self, set_test_backend):
         from optiland.fields.strategies import AngleField, ObjectHeightField
 
-        lens = HeliarLens() # field_type "angle"
+        lens = HeliarLens()  # field_type "angle"
         lens.set_apodization(GaussianApodization(sigma=0.5))
         basic_dict = lens.to_dict()
 
@@ -431,7 +507,7 @@ class TestOptic:
         assert new_optic_no_apod.apodization is None
         assert isinstance(new_optic_no_apod.field_type, AngleField)
 
-        finite_lens = singlet_finite_object() # Default field_type "angle"
+        finite_lens = singlet_finite_object()  # Default field_type "angle"
         # Change to object_height for testing this case
         finite_lens.set_field_type("object_height")
         finite_dict_obj_height = finite_lens.to_dict()
@@ -444,10 +520,10 @@ class TestOptic:
         dict_missing_ft["fields"].pop("field_type", None)
         # Optic.from_dict should raise ValueError if fields are present
         # but field_type string is missing.
-        if new_optic.fields.fields: # Heliar lens has fields
-             with pytest.raises(ValueError) as excinfo:
-                 Optic.from_dict(dict_missing_ft)
-             assert "missing in dictionary but fields are present" in str(excinfo.value)
+        if new_optic.fields.fields:  # Heliar lens has fields
+            with pytest.raises(ValueError) as excinfo:
+                Optic.from_dict(dict_missing_ft)
+            assert "missing in dictionary but fields are present" in str(excinfo.value)
 
         dict_empty_ft = lens.to_dict()
         dict_empty_ft["fields"]["field_type"] = ""
@@ -457,12 +533,11 @@ class TestOptic:
             assert "missing in dictionary but fields are present" in str(excinfo.value)
 
         empty_optic = Optic()
-        empty_dict = empty_optic.to_dict() # field_type will be ""
+        empty_dict = empty_optic.to_dict()  # field_type will be ""
         empty_dict["fields"]["field_type"] = ""
         deserialized_empty_optic = Optic.from_dict(empty_dict)
         assert deserialized_empty_optic.field_type is None
         assert not deserialized_empty_optic.fields.fields
-
 
     def test_set_invalid_field_type_string(self, set_test_backend):
         with pytest.raises(ValueError) as excinfo:
@@ -470,15 +545,15 @@ class TestOptic:
         assert "Invalid field_type string" in str(excinfo.value)
 
     def test_validate_optic_state_object_height_infinite_obj(self, set_test_backend):
-        self.optic.add_surface(index=0, thickness=be.inf) # Infinite object
-        self.optic.add_surface(index=1, thickness=0)   # Image surface
+        self.optic.add_surface(index=0, thickness=be.inf)  # Infinite object
+        self.optic.add_surface(index=1, thickness=0)  # Image surface
         with pytest.raises(ValueError) as excinfo:
             self.optic.set_field_type("object_height")
         err_msg = 'Field type "object_height" is invalid for an object at infinity.'
         assert err_msg in str(excinfo.value)
 
     def test_validate_optic_state_angle_telecentric(self, set_test_backend):
-        self.optic.add_surface(index=0, thickness=10) # Finite object
+        self.optic.add_surface(index=0, thickness=10)  # Finite object
         self.optic.add_surface(index=1, thickness=0)  # Image surface
         self.optic.obj_space_telecentric = True
         with pytest.raises(ValueError) as excinfo:
@@ -488,7 +563,7 @@ class TestOptic:
         self.optic.obj_space_telecentric = False
 
     def test_validate_optic_state_object_height_telecentric_epd(self, set_test_backend):
-        self.optic.add_surface(index=0, thickness=10) # Finite object
+        self.optic.add_surface(index=0, thickness=10)  # Finite object
         self.optic.add_surface(index=1, thickness=0)  # Image surface
         self.optic.obj_space_telecentric = True
         self.optic.set_aperture("EPD", 10)
@@ -499,7 +574,7 @@ class TestOptic:
         self.optic.obj_space_telecentric = False
 
     def test_validate_optic_state_object_height_telecentric_fno(self, set_test_backend):
-        self.optic.add_surface(index=0, thickness=10) # Finite object
+        self.optic.add_surface(index=0, thickness=10)  # Finite object
         self.optic.add_surface(index=1, thickness=0)  # Image surface
         self.optic.obj_space_telecentric = True
         self.optic.set_aperture("imageFNO", 5)
@@ -517,7 +592,7 @@ class TestOptic:
         self.optic.add_surface(index=0, thickness=10)
         self.optic.add_surface(index=1, thickness=10)
         for surface in self.optic.surface_group.surfaces:
-            surface.is_stop = False # Explicitly set all to not be stop
+            surface.is_stop = False  # Explicitly set all to not be stop
         with pytest.raises(ValueError):
             _ = self.optic.surface_group.stop_index
 
@@ -563,7 +638,7 @@ class TestOptic:
         assert_allclose(n_orig[:-1], be.flip(n_flipped[:-1]))
 
     def test_invalid_flip(self, set_test_backend):
-        lens = Optic() # Optic with no surfaces or only 1 surface
+        lens = Optic()  # Optic with no surfaces or only 1 surface
         with pytest.raises(ValueError):
             lens.flip()
 
@@ -571,10 +646,11 @@ class TestOptic:
         lens = Optic()
 
         lens.add_surface(index=0, radius=be.inf, thickness=be.inf)
-        lens.add_surface(index=1, radius=100, thickness=4,
-                         material="SK16", is_stop=True)
+        lens.add_surface(
+            index=1, radius=100, thickness=4, material="SK16", is_stop=True
+        )
         lens.add_surface(index=2, radius=-1000, thickness=20)
-        lens.add_surface(index=3) # Image surface
+        lens.add_surface(index=3)  # Image surface
         lens.set_aperture(aperture_type="EPD", value=10.0)
         lens.set_field_type(field_type="angle")
         lens.add_field(y=0)
