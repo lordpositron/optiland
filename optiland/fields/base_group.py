@@ -1,8 +1,8 @@
 """Base Field Group Module.
 
 This module provides the abstract base class for all field groups. A field
-group contains a collection of fields, all of which must be of the same conceptual
-type (e.g., all angle fields, all object height fields).
+group contains a collection of fields, all of which must be of the same
+conceptual type (e.g., all angle fields, all object height fields).
 
 The primary responsibilities of a `BaseFieldGroup` derivative are:
     - Managing a list of `Field` objects.
@@ -15,14 +15,15 @@ The primary responsibilities of a `BaseFieldGroup` derivative are:
 Typical field types include:
     - Angle: Fields defined by an angle with respect to the optical axis.
     - Object Height: Fields defined by a height on the object plane.
-    - Paraxial Image Height: Fields defined by a height in the paraxial image plane.
+    - Paraxial Image Height: Fields defined by a height in the paraxial image
+      plane.
     - Real Image Height: Fields defined by a height in the real image plane.
 
 Kramer Harrison, 2025
 """
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Dict, List, Tuple
+from typing import TYPE_CHECKING, Any
 
 import optiland.backend as be
 from optiland.fields.field import Field
@@ -34,23 +35,24 @@ if TYPE_CHECKING:
 class BaseFieldGroup(ABC):
     """Abstract base class for all field group types.
 
-    A `BaseFieldGroup` manages a collection of `Field` objects, all assumed to be
-    of a consistent type defined by the concrete subclass (e.g., `AngleFieldGroup`
-    manages fields representing angles). It provides an interface for adding,
-    retrieving, and managing these fields, as well as methods for converting
-    field data into ray parameters for optical simulations.
+    A `BaseFieldGroup` manages a collection of `Field` objects, all assumed to
+    be of a consistent type defined by the concrete subclass (e.g.,
+    `AngleFieldGroup` manages fields representing angles). It provides an
+    interface for adding, retrieving, and managing these fields, as well as
+    methods for converting field data into ray parameters for optical
+    simulations.
 
     Attributes:
-        fields (List[Field]): A list of `Field` objects in the group. Each field
+        fields (list[Field]): A list of `Field` objects in the group. Each field
             typically stores x and y coordinates and vignetting factors.
-        telecentric (bool): Indicates whether the optical system is telecentric in
-            object space. This property can affect how fields are interpreted or
-            validated by subclasses. Defaults to `False`.
+        telecentric (bool): Indicates whether the optical system is telecentric
+            in object space. This property can affect how fields are
+            interpreted or validated by subclasses. Defaults to `False`.
     """
 
     def __init__(self) -> None:
         """Initializes a new `BaseFieldGroup` instance."""
-        self.fields: List[Field] = []
+        self.fields: list[Field] = []
         self.telecentric: bool = False
 
     @property
@@ -101,10 +103,11 @@ class BaseFieldGroup(ABC):
         """
         if not self.fields:
             return 0.0
-        if self.x_fields.size == 0 and self.y_fields.size == 0: # Should not happen if fields is not empty
+        if (
+            self.x_fields.size == 0 and self.y_fields.size == 0
+        ):  # Should not happen if fields is not empty
             return 0.0
         return float(be.max(be.sqrt(self.x_fields**2 + self.y_fields**2)))
-
 
     @property
     def num_fields(self) -> int:
@@ -154,16 +157,16 @@ class BaseFieldGroup(ABC):
         Hy: be.ndarray,
         Px: be.ndarray,
         Py: be.ndarray,
-        vx: float, # TODO: Check if these vx, vy are needed or if they should be arrays
+        vx: float,
         vy: float,
         optic: "Optic",
-    ) -> Tuple[be.ndarray, be.ndarray]:
-        """Converts normalized field and pupil coordinates to ray origins and directions.
+    ) -> tuple[be.ndarray, be.ndarray]:
+        """Converts norm. field and pupil coords to ray origins and directions.
 
         This method is crucial for generating rays for tracing. Subclasses must
         implement the specific logic for their field type (e.g., angle, height)
-        to correctly determine the starting position (ro) and direction cosines (rd)
-        of rays originating from the object surface or its equivalent.
+        to correctly determine the starting position (ro) and direction cosines
+        (rd) of rays originating from the object surface or its equivalent.
 
         Args:
             Hx (be.ndarray): Normalized x-coordinates of the field points.
@@ -176,7 +179,7 @@ class BaseFieldGroup(ABC):
                 distance and surface information.
 
         Returns:
-            Tuple[be.ndarray, be.ndarray]: A tuple containing:
+            tuple[be.ndarray, be.ndarray]: A tuple containing:
                 - ro (be.ndarray): Ray origin coordinates (x, y, z).
                 - rd (be.ndarray): Ray direction cosines (l, m, n).
         """
@@ -185,7 +188,7 @@ class BaseFieldGroup(ABC):
     @abstractmethod
     def to_paraxial_starting_ray(
         self, Hy: float, Py: float, wavelength: float, optic: "Optic"
-    ) -> Tuple[float, float]:
+    ) -> tuple[float, float]:
         """Calculates starting height and angle for a paraxial ray.
 
         This method is used for paraxial ray tracing. Subclasses must implement
@@ -201,13 +204,13 @@ class BaseFieldGroup(ABC):
                 distance and paraxial properties.
 
         Returns:
-            Tuple[float, float]: A tuple containing:
+            tuple[float, float]: A tuple containing:
                 - y (float): Initial height of the paraxial ray.
                 - u (float): Initial angle (slope) of the paraxial ray.
         """
         pass  # pragma: no cover
 
-    def get_vig_factor(self, Hx: float, Hy: float) -> Tuple[float, float]:
+    def get_vig_factor(self, Hx: float, Hy: float) -> tuple[float, float]:
         """Calculates interpolated vignetting factors for a given field position.
 
         Uses nearest-neighbor interpolation based on the vignetting factors
@@ -222,7 +225,7 @@ class BaseFieldGroup(ABC):
                 interpolate vignetting.
 
         Returns:
-            Tuple[float, float]: A tuple `(vx_new, vy_new)` representing the
+            tuple[float, float]: A tuple `(vx_new, vy_new)` representing the
             interpolated x and y vignetting factors. If no fields are present,
             returns `(0.0, 0.0)`.
         """
@@ -253,16 +256,16 @@ class BaseFieldGroup(ABC):
         vy_new = float(interpolated_v[0, 1])
         return vx_new, vy_new
 
-    def get_field_coords(self) -> List[Tuple[float, float]]:
+    def get_field_coords(self) -> list[tuple[float, float]]:
         """Returns normalized coordinates of the fields.
 
-        If `self.max_field` is 0 (e.g., only one field at the origin or no fields),
-        it returns `[(0.0, 0.0)]` if fields exist, or `[]` if no fields.
-        Otherwise, it calculates the normalized coordinates (x/max_field, y/max_field)
-        for each field.
+        If `self.max_field` is 0 (e.g., only one field at the origin or no
+        fields), it returns `[(0.0, 0.0)]` if fields exist, or `[]` if no
+        fields. Otherwise, it calculates the normalized coordinates
+        (x/max_field, y/max_field) for each field.
 
         Returns:
-            List[Tuple[float, float]]: A list of tuples, where each tuple
+            list[tuple[float, float]]: A list of tuples, where each tuple
             contains the `(normalized_x, normalized_y)` coordinates of a field.
             Returns an empty list if no fields are present.
         """
@@ -289,12 +292,13 @@ class BaseFieldGroup(ABC):
             field (Field): The `Field` object to be added.
             optic (Optic): The `Optic` instance, used for validation purposes.
                            The `validate` method might check for consistencies
-                           like field type compatibility with telecentric settings.
+                           like field type compatibility with telecentric
+                           settings.
 
         Raises:
             ValueError: If `self.validate(optic)` raises an error.
         """
-        self.validate(optic) # Validate before adding
+        self.validate(optic)  # Validate before adding
         self.fields.append(field)
 
     def get_field(self, field_number: int) -> Field:
@@ -340,16 +344,16 @@ class BaseFieldGroup(ABC):
         Returns:
             str: The type string.
         """
-        pass # pragma: no cover
+        pass  # pragma: no cover
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serializes the field group to a dictionary.
 
         The dictionary includes the list of serialized fields, the telecentric
         status, and the field type string.
 
         Returns:
-            Dict[str, Any]: A dictionary representation of the field group,
+            dict[str, Any]: A dictionary representation of the field group,
             suitable for JSON serialization.
         """
         return {
@@ -359,40 +363,45 @@ class BaseFieldGroup(ABC):
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any], optic_for_add_field: "Optic") -> "BaseFieldGroup":
+    def from_dict(
+        cls, data: dict[str, Any], optic_for_add_field: "Optic"
+    ) -> "BaseFieldGroup":
         """Creates a `BaseFieldGroup` (or subclass) instance from a dictionary.
 
         This method is intended to be called on the specific subclass
-        (e.g., `AngleFieldGroup.from_dict(...)`). It reconstructs the field group,
-        adds fields from the dictionary, and sets the telecentric flag.
+        (e.g., `AngleFieldGroup.from_dict(...)`). It reconstructs the field
+        group, adds fields from the dictionary, and sets the telecentric flag.
 
         Note:
             The `optic_for_add_field` argument is required because `add_field`
             performs validation against the optic. This introduces a dependency
             that might be refactored in the future if validation logic changes.
             If `optic_for_add_field` is `None`, field addition might skip
-            validation or use a default validation context, which could be risky.
-            For robust reconstruction, a valid `Optic` context is preferred.
+            validation or use a default validation context, which could be
+            risky. For robust reconstruction, a valid `Optic` context is
+            preferred.
 
         Args:
-            data (Dict[str, Any]): A dictionary representation of the field group,
-                typically obtained from `to_dict()`. Expected keys include
-                'fields' (a list of field dictionaries) and 'telecentric' (a boolean).
-                The 'field_type' key from `data` is used by a factory, not directly here.
+            data (dict[str, Any]): A dictionary representation of the field
+                group, typically obtained from `to_dict()`. Expected keys
+                include 'fields' (a list of field dictionaries) and
+                'telecentric' (a boolean). The 'field_type' key from `data` is
+                used by a factory, not directly here.
             optic_for_add_field (Optic): The Optic instance to be used for
-                validation when adding fields. This is a bit problematic as `from_dict`
-                is a class method. Ideally, validation happens after full construction.
+                validation when adding fields. This is a bit problematic as
+                `from_dict` is a class method. Ideally, validation happens
+                after full construction.
 
         Returns:
-            BaseFieldGroup: An instance of the calling class (e.g., `AngleFieldGroup`)
-            populated with data from the dictionary.
+            BaseFieldGroup: An instance of the calling class
+            (e.g., `AngleFieldGroup`) populated with data from the dictionary.
 
         Raises:
             ValueError: If required keys are missing in `data` or if
                 `Field.from_dict` fails.
         """
-        # This method will be implemented by concrete subclasses, but they can call
-        # super().from_dict(...) or replicate this logic.
+        # This method will be implemented by concrete subclasses, but they can
+        # call super().from_dict(...) or replicate this logic.
         # The `cls()` call instantiates the specific subclass.
         field_group = cls()
         field_dicts = data.get("fields")
@@ -403,8 +412,9 @@ class BaseFieldGroup(ABC):
             # We are removing 'field_type' from Field instances.
             # Field.from_dict should be updated to not expect it.
             # The validation in add_field needs the optic.
-            # This is a tricky part of from_dict when methods need external context.
-            # For now, we pass it. If optic_for_add_field is None, validate might need to handle it.
+            # This is a tricky part of from_dict when methods need external
+            # context. For now, we pass it. If optic_for_add_field is None,
+            # validate might need to handle it.
             field_group.add_field(Field.from_dict(field_dict), optic_for_add_field)
 
         telecentric_val = data.get("telecentric")

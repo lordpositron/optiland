@@ -4,7 +4,7 @@ This module defines the `AngleFieldGroup` class, which represents a collection
 of fields defined by angles relative to the optical axis.
 """
 
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING
 
 import optiland.backend as be
 from optiland.fields.base_group import BaseFieldGroup
@@ -58,7 +58,9 @@ class AngleFieldGroup(BaseFieldGroup):
                 f"Field type '{self.field_type_string()}' cannot be used when "
                 "object_space_telecentric is True."
             )
-        self.telecentric = optic.obj_space_telecentric # Keep its own telecentric flag in sync
+        self.telecentric = (
+            optic.obj_space_telecentric
+        )  # Keep its own telecentric flag in sync
 
     def to_ray_origins(
         self,
@@ -69,7 +71,7 @@ class AngleFieldGroup(BaseFieldGroup):
         vx: float,
         vy: float,
         optic: "Optic",
-    ) -> Tuple[be.ndarray, be.ndarray]:
+    ) -> tuple[be.ndarray, be.ndarray]:
         """Converts normalized angle field and pupil coords to ray origins/directions.
 
         This method must be implemented to define how angle fields (represented by
@@ -86,7 +88,7 @@ class AngleFieldGroup(BaseFieldGroup):
             optic (Optic): The optical system.
 
         Returns:
-            Tuple[be.ndarray, be.ndarray]: Ray origins (ro) and directions (rd).
+            tuple[be.ndarray, be.ndarray]: Ray origins (ro) and directions (rd).
 
         Raises:
             NotImplementedError: This method is abstract and must be implemented
@@ -103,7 +105,7 @@ class AngleFieldGroup(BaseFieldGroup):
 
     def to_paraxial_starting_ray(
         self, Hy: float, Py: float, wavelength: float, optic: "Optic"
-    ) -> Tuple[float, float]:
+    ) -> tuple[float, float]:
         """Calculates starting height and angle for a paraxial ray from an angle field.
 
         This method must be implemented to define how a normalized field angle
@@ -117,7 +119,7 @@ class AngleFieldGroup(BaseFieldGroup):
             optic (Optic): The optical system.
 
         Returns:
-            Tuple[float, float]: Initial height (y) and angle (u).
+            tuple[float, float]: Initial height (y) and angle (u).
 
         Raises:
             NotImplementedError: This method is abstract and must be implemented
@@ -126,9 +128,11 @@ class AngleFieldGroup(BaseFieldGroup):
         # Example of what might be needed:
         # field_y_angle_rad = be.deg2rad(Hy * self.max_y_field)
         # initial_y = 0.0 # If object at infinity, ray starts at axis
-        # initial_u = be.tan(field_y_angle_rad) # Or just field_y_angle_rad for small angles
+        # initial_u = be.tan(field_y_angle_rad)
+        # # Or just field_y_angle_rad for small angles
         raise NotImplementedError(
-            f"{self.__class__.__name__}.to_paraxial_starting_ray is not yet implemented."
+            f"{self.__class__.__name__}.to_paraxial_starting_ray is not "
+            "yet implemented."
         )  # pragma: no cover
 
     def set_telecentric(self, is_telecentric: bool) -> None:
@@ -153,4 +157,4 @@ class AngleFieldGroup(BaseFieldGroup):
                 "object_space_telecentric is True. "
                 "Cannot set AngleFieldGroup to be telecentric."
             )
-        super().set_telecentric(is_telecentric) # Should be False
+        super().set_telecentric(is_telecentric)  # Should be False

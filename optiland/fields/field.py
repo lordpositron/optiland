@@ -5,7 +5,7 @@ an optical system. A field point is typically defined by its coordinates (x, y)
 and associated vignetting factors.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 
 class Field:
@@ -53,14 +53,14 @@ class Field:
         self.vx: float = vignette_factor_x
         self.vy: float = vignette_factor_y
 
-    def to_dict(self) -> Dict[str, float]:
+    def to_dict(self) -> dict[str, float]:
         """Serializes the field attributes to a dictionary.
 
         The `field_type` is no longer part of the `Field` class itself, as it's
         managed by the `FieldGroup`.
 
         Returns:
-            Dict[str, float]: A dictionary containing the 'x', 'y', 'vx', and 'vy'
+            dict[str, float]: A dictionary containing the 'x', 'y', 'vx', and 'vy'
             attributes of the field.
         """
         return {
@@ -71,7 +71,7 @@ class Field:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "Field":
+    def from_dict(cls, data: dict[str, Any]) -> "Field":
         """Creates a `Field` instance from a dictionary representation.
 
         The dictionary is expected to contain keys 'x', 'y', 'vx', and 'vy'.
@@ -79,7 +79,7 @@ class Field:
         default value (0 for coordinates, 0.0 for vignetting factors).
 
         Args:
-            data (Dict[str, Any]): A dictionary containing the field's attributes.
+            data (dict[str, Any]): A dictionary containing the field's attributes.
                 Expected keys: "x", "y", "vx", "vy".
 
         Returns:
@@ -96,7 +96,4 @@ class Field:
 
     def __repr__(self) -> str:
         """Provides a string representation of the Field instance."""
-        return (
-            f"Field(x={self.x}, y={self.y}, "
-            f"vx={self.vx}, vy={self.vy})"
-        )
+        return f"Field(x={self.x}, y={self.y}, vx={self.vx}, vy={self.vy})"

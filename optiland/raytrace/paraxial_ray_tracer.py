@@ -25,22 +25,45 @@ class ParaxialRayTracer:
         """Trace paraxial ray through the optical system based on specified field
         and pupil coordinates.
 
+        The initial ray parameters (y0, u0, z0) are determined by the
+        optic's current field group.
+
         Args:
-            Hy (float): Normalized field coordinate.
+            Hy (float): Normalized field coordinate, interpreted by the active
+                        field group (e.g., normalized angle, object height,
+                        or image height).
             Py (float): Normalized pupil coordinate.
-            wavelength (float): Wavelength of the light.
+            wavelength (float): Wavelength of the light in micrometers.
 
         """
-        EPL = self.optic.paraxial.EPL()
-        EPD = self.optic.paraxial.EPD()
+        if self.optic.fields is None:
+            raise ValueError(
+                "Cannot trace paraxial ray: Optic has no field group defined."
+            )
 
-        y1 = Py * EPD / 2
+        y0, u0 = self.optic.fields.to_paraxial_starting_ray(
+            Hy=Hy, Py=Py, wavelength=wavelength, optic=self.optic
+        )
 
-        y0, z0 = self._get_object_position(Hy, y1, EPL)
-        u0 = (y1 - y0) / (EPL - z0)
+        if self.optic.object_surface and self.optic.object_surface.is_infinite:
+            # For infinite conjugates, y0, u0 from field group are typically defined
+            # with y0 at the first optical surface and u0 as the field angle.
+            if not self.optic.surface_group.surfaces:
+                raise ValueError(
+                    "Optic has no surfaces to define z0 for infinite object."
+                )
+            z0 = self.optic.surface_group.surfaces[0].geometry.cs.z
+        elif self.optic.object_surface:  # Finite object distance
+            z0 = self.optic.object_surface.geometry.cs.z
+        else:
+            raise ValueError("Optic has no object surface defined to determine z0.")
+
         rays = ParaxialRays(y0, u0, z0, wavelength)
-
         self.optic.surface_group.trace(rays)
+        # The ParaxialRays object 'rays' is updated in-place by surface_group.trace()
+        # and contains the traced ray data (e.g., rays.y, rays.u).
+        # No explicit return here, but results are in 'rays'.
+        # The calling Paraxial.trace method might return rays.y, rays.u.
 
     def trace_generic(self, y, u, z, wavelength, reverse=False, skip=0):
         """
@@ -106,52 +129,8 @@ class ParaxialRayTracer:
 
         return heights, slopes
 
-    def _get_object_position(self, Hy, y1, EPL):
-        """Calculate the position of the object in the paraxial optical system.
-
-        Args:
-            Hy (float): The normalized field height.
-            y1 (ndarray): The initial y-coordinate of the ray.
-            EPL (float): The effective focal length of the lens.
-
-        Returns:
-            tuple: A tuple containing the y and z coordinates of the object
-                position.
-
-        Raises:
-            ValueError: If the field type is "object_height" and the object is
-                at infinity.
-
-        """
-        obj = self.optic.object_surface
-        field_y = self.optic.fields.max_field * Hy
-
-        if obj.is_infinite:
-            if self.optic.field_type == "object_height":
-                raise ValueError(
-                    'Field type cannot be "object_height" for an object at infinity.',
-                )
-
-            y = -be.tan(be.radians(field_y)) * EPL
-            z = self.optic.surface_group.positions[1]
-
-            y0 = y1 + y
-            z0 = be.ones_like(y1) * z
-        elif self.optic.field_type == "object_height":
-            y = -field_y
-            z = obj.geometry.cs.z
-
-            y0 = be.ones_like(y1) * y
-            z0 = be.ones_like(y1) * z
-
-        elif self.optic.field_type == "angle":
-            y = -be.tan(be.radians(field_y))
-            z = self.optic.surface_group.positions[0]
-
-            y0 = y1 + y
-            z0 = be.ones_like(y1) * z
-
-        return y0, z0
+    # _get_object_position method removed as its logic is now encapsulated
+    # within the FieldGroup subclasses' to_paraxial_starting_ray method.
 
     def _process_input(self, x):
         """

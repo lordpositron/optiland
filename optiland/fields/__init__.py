@@ -7,30 +7,33 @@ It includes:
     - `BaseFieldGroup`: An abstract base class for collections of fields of the
       same type.
     - `AngleFieldGroup`: A concrete implementation for fields defined by angles.
+    - `ParaxialImageHeightGroup`: For fields defined by paraxial image heights.
+    - `ObjectHeightGroup`: For fields defined by object heights.
     - `make_field_group`: A factory function to create specific `FieldGroup`
       instances based on a type string.
 
 The `make_field_group` factory is the preferred way to create `FieldGroup`
 instances within the `Optic` class, as it decouples `Optic` from concrete
-field group implementations. To add a new field group type (e.g., `ObjectHeightFieldGroup`),
-it needs to be:
+field group implementations. To add a new field group type, it needs to be:
 1. Implemented as a subclass of `BaseFieldGroup`.
-2. Added to the `_FIELD_GROUP_CONSTRUCTORS` dictionary within this `__init__.py` file
-   so `make_field_group` can find and instantiate it.
+2. Imported into this `__init__.py` file.
+3. Added to the `_FIELD_GROUP_CONSTRUCTORS` dictionary within this `__init__.py`
+   file so `make_field_group` can find and instantiate it.
+4. Added to the `__all__` list.
 """
-
-from typing import Dict, Type
 
 from .angle_group import AngleFieldGroup
 from .base_group import BaseFieldGroup
 from .field import Field
+from .object_height_group import ObjectHeightGroup
+from .paraxial_image_height_group import ParaxialImageHeightGroup
 
 # Dictionary to map field type strings to their constructor classes.
 # This acts as a registry for available FieldGroup types.
-_FIELD_GROUP_CONSTRUCTORS: Dict[str, Type[BaseFieldGroup]] = {
+_FIELD_GROUP_CONSTRUCTORS: dict[str, type[BaseFieldGroup]] = {
     AngleFieldGroup.field_type_string(): AngleFieldGroup,
-    # To add new field group types, add them here, e.g.:
-    # ObjectHeightFieldGroup.field_type_string(): ObjectHeightFieldGroup,
+    ObjectHeightGroup.field_type_string(): ObjectHeightGroup,
+    ParaxialImageHeightGroup.field_type_string(): ParaxialImageHeightGroup,
 }
 
 
@@ -60,8 +63,7 @@ def make_field_group(field_type_str: str) -> BaseFieldGroup:
     else:
         valid_types = list(_FIELD_GROUP_CONSTRUCTORS.keys())
         raise ValueError(
-            f"Unknown field type: '{field_type_str}'. "
-            f"Valid types are: {valid_types}"
+            f"Unknown field type: '{field_type_str}'. Valid types are: {valid_types}"
         )
 
 
@@ -69,5 +71,7 @@ __all__ = [
     "Field",
     "BaseFieldGroup",
     "AngleFieldGroup",
+    "ObjectHeightGroup",
+    "ParaxialImageHeightGroup",
     "make_field_group",
 ]
