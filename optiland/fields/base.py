@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 
+
 class BaseFieldStrategy(ABC):
     """
     Abstract base class for defining field strategies.
@@ -23,7 +24,9 @@ class BaseFieldStrategy(ABC):
         pass
 
     @abstractmethod
-    def get_chief_ray_start_params(self, optic, chief_ray_y_at_stop, chief_ray_u_at_stop):
+    def get_chief_ray_start_params(
+        self, optic, chief_ray_y_at_stop, chief_ray_u_at_stop
+    ):
         """
         Calculates the starting parameters for the chief ray based on field type.
         """
