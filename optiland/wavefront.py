@@ -1,4 +1,4 @@
-"""Wavefront Module
+"""Wavefront Module.
 
 This module defines the `Wavefront` class, which is designed to analyze the
 wavefront of an optical system. It supports the evaluation of wavefront
@@ -19,13 +19,13 @@ from scipy.interpolate import griddata
 
 import optiland.backend as be
 from optiland.distribution import create_distribution
+from optiland.fields.strategies import AngleField # For type checking
 from optiland.zernike import ZernikeFit
 
 
 @dataclass
 class WavefrontData:
-    """
-    Data container for wavefront results at a given field and wavelength.
+    """Data container for wavefront results at a given field and wavelength.
 
     Attributes:
         pupil_x (be.ndarray): x-coordinates of ray intersections at exit pupil.
@@ -34,6 +34,7 @@ class WavefrontData:
         opd (be.ndarray): Optical path difference data, normalized to waves.
         intensity (be.ndarray): Ray intensities at the exit pupil.
         radius (be.ndarray): Radius of curvature of the exit pupil reference sphere.
+
     """
 
     pupil_x: be.ndarray
@@ -45,8 +46,7 @@ class WavefrontData:
 
 
 class Wavefront:
-    """
-    Performs wavefront analysis on an optical system.
+    """Performs wavefront analysis on an optical system.
 
     Computes ray intersection points with the exit pupil, the optical path
     difference (OPD) relative to a reference sphere, the radius of curvature
@@ -54,14 +54,27 @@ class Wavefront:
 
     Args:
         optic (Optic): The optical system to analyze.
-        fields (str or List[Tuple[float, float]]): Fields or 'all'.
-        wavelengths (str or List[float]): Wavelengths or 'all'/'primary'.
+        fields (str | list[tuple[float, float]]): Fields to analyze.
+            Can be 'all' for all defined fields in the optic, or a list of
+            (Hx, Hy) field coordinate tuples.
+        wavelengths (str | list[float]): Wavelengths to analyze.
+            Can be 'all' for all defined wavelengths, 'primary' for the
+            primary wavelength, or a list of wavelength values in microns.
         num_rays (int): Number of rays for pupil sampling.
-        distribution (str or Distribution): Ray distribution or its name.
+        distribution (str | optiland.distribution.BaseDistribution):
+            Ray distribution pattern for pupil sampling. Can be a string name
+            (e.g., "hexapolar", "grid") or a BaseDistribution instance.
 
     Attributes:
-        data (List[List[WavefrontData]]): Nested lists indexed
-            by [field][wavelength].
+        optic (Optic): The optical system being analyzed.
+        fields (list[tuple[float, float]]): Resolved list of field coordinates.
+        wavelengths (list[float]): Resolved list of wavelengths.
+        num_rays (int): Number of rays used for sampling.
+        distribution (optiland.distribution.BaseDistribution): Distribution instance.
+        data (dict[tuple[tuple[float, float], float], WavefrontData]):
+            A dictionary mapping (field_tuple, wavelength) keys to
+            WavefrontData objects containing the analysis results.
+
     """
 
     def __init__(
@@ -72,6 +85,20 @@ class Wavefront:
         num_rays=12,
         distribution="hexapolar",
     ):
+        """Initialize Wavefront analysis.
+
+        Args:
+            optic (Optic): The optical system to analyze.
+            fields (str | list[tuple[float, float]], optional): Fields to analyze.
+                Defaults to 'all'.
+            wavelengths (str | list[float], optional): Wavelengths to analyze.
+                Defaults to 'all'.
+            num_rays (int, optional): Number of rays for pupil sampling.
+                Defaults to 12.
+            distribution (str | optiland.distribution.BaseDistribution, optional):
+                Ray distribution. Defaults to "hexapolar".
+
+        """
         self.optic = optic
         self.fields = self._resolve_fields(fields)
         self.wavelengths = self._resolve_wavelengths(wavelengths)
@@ -81,83 +108,88 @@ class Wavefront:
         self._generate_data()
 
     def get_data(self, field, wl):
-        """
-        Retrieve precomputed wavefront data for a given field and wavelength.
+        """Retrieve precomputed wavefront data for a given field and wavelength.
 
         Args:
-            field (Tuple[float, float]): Field coordinates.
-            wl (float): Wavelength.
+            field (tuple[float, float]): Field coordinates (Hx, Hy).
+            wl (float): Wavelength in microns.
 
         Returns:
-            WavefrontData: Data container with intersections, OPD, intensity, and
-            curvature.
+            WavefrontData: Data container with intersections, OPD, intensity,
+            and curvature for the specified field and wavelength.
+
         """
         return self.data[(field, wl)]
 
-    def _resolve_fields(self, fields):
+    def _resolve_fields(self, fields_in):
         """Resolve field coordinates based on input."""
-        if fields == "all":
+        if fields_in == "all":
             return self.optic.fields.get_field_coords()
-        return fields
+        return fields_in
 
-    def _resolve_wavelengths(self, wavelengths):
+    def _resolve_wavelengths(self, wavelengths_in):
         """Resolve wavelengths based on input."""
-        if wavelengths == "all":
+        if wavelengths_in == "all":
             return self.optic.wavelengths.get_wavelengths()
-        if wavelengths == "primary":
+        if wavelengths_in == "primary":
             return [self.optic.primary_wavelength]
-        return wavelengths
+        return wavelengths_in
 
-    def _resolve_distribution(self, dist, num_rays):
+    def _resolve_distribution(self, dist_in, num_rays):
         """Resolve distribution based on input."""
-        if isinstance(dist, str):
-            dist_obj = create_distribution(dist)
+        if isinstance(dist_in, str):
+            dist_obj = create_distribution(dist_in)
             dist_obj.generate_points(num_rays)
             return dist_obj
-        return dist
+        return dist_in
 
     def _generate_data(self):
-        """Generate wavefront data for all fields and wavelengths."""
+        """Generate wavefront data for all specified fields and wavelengths."""
+        # Global z-coordinate of the exit pupil
         pupil_z = self.optic.paraxial.XPL() + self.optic.surface_group.positions[-1]
-        for field in self.fields:
-            for wl in self.wavelengths:
-                # trace chief ray and get reference sphere
-                self._trace_chief_ray(field, wl)
+        for field_coord in self.fields:
+            for wl_val in self.wavelengths:
+                # Trace chief ray to establish reference sphere parameters
+                self._trace_chief_ray(field_coord, wl_val)
                 xc, yc, zc, R = self._get_reference_sphere(pupil_z)
 
-                # reference OPD (chief ray)
-                opd_ref, _ = self._get_path_length(xc, yc, zc, R, wl)
-                opd_ref = self._correct_tilt(field, opd_ref, x=0, y=0)
+                # Reference OPD (from chief ray) and tilt correction
+                opd_ref, _ = self._get_path_length(xc, yc, zc, R, wl_val)
+                opd_ref = self._correct_tilt(field_coord, opd_ref, x=0, y=0)
 
-                # generate full field data
-                self.data[(field, wl)] = self._generate_field_data(
-                    field, wl, opd_ref, xc, yc, zc, R
+                # Generate and store full field wavefront data
+                self.data[(field_coord, wl_val)] = self._generate_field_data(
+                    field_coord, wl_val, opd_ref, xc, yc, zc, R
                 )
 
     def _generate_field_data(self, field, wavelength, opd_ref, xc, yc, zc, R):
-        """
-        Generate WavefrontData for a single field and wavelength.
+        """Generate WavefrontData for a single field and wavelength.
 
         Args:
-            field (tuple): Field coordinates.
-            wavelength (float): Wavelength.
-            opd_ref: Reference OPD from chief ray.
-            xc, yc, zc: Reference sphere center.
-            R: Reference sphere radius.
+            field (tuple[float, float]): Field coordinates (Hx, Hy).
+            wavelength (float): Wavelength in microns.
+            opd_ref (float): Reference OPD from the chief ray.
+            xc (float): X-coordinate of the reference sphere center.
+            yc (float): Y-coordinate of the reference sphere center.
+            zc (float): Z-coordinate of the reference sphere center.
+            R (float): Radius of the reference sphere.
 
         Returns:
-            WavefrontData: All per-ray results.
+            WavefrontData: Object containing all per-ray results (pupil
+            coordinates, OPD, intensity, reference sphere radius).
+
         """
         rays = self.optic.trace(*field, wavelength, None, self.distribution)
         intensity = self.optic.surface_group.intensity[-1, :]
 
-        opd, t = self._get_path_length(xc, yc, zc, R, wavelength)
-        opd = self._correct_tilt(field, opd)
-        opd_wv = (opd_ref - opd) / (wavelength * 1e-3)  # OPD map in waves
+        opd_values, t_values = self._get_path_length(xc, yc, zc, R, wavelength)
+        opd_corrected = self._correct_tilt(field, opd_values)
+        # OPD map in waves (microns to waves conversion)
+        opd_wv = (opd_ref - opd_corrected) / (wavelength * 1e-3)
 
-        pupil_x = rays.x - t * rays.L
-        pupil_y = rays.y - t * rays.M
-        pupil_z = rays.z - t * rays.N
+        pupil_x = rays.x - t_values * rays.L
+        pupil_y = rays.y - t_values * rays.M
+        pupil_z = rays.z - t_values * rays.N
         return WavefrontData(
             pupil_x=pupil_x,
             pupil_y=pupil_y,
@@ -168,77 +200,139 @@ class Wavefront:
         )
 
     def _trace_chief_ray(self, field, wavelength):
-        """
-        Trace the chief ray for a given field and wavelength.
-        """
+        """Trace the chief ray for a given field and wavelength."""
         self.optic.trace_generic(*field, Px=0.0, Py=0.0, wavelength=wavelength)
 
     def _get_reference_sphere(self, pupil_z):
-        """
-        Determine reference sphere center and radius from chief ray.
-        """
+        """Determine reference sphere center and radius from chief ray."""
+        # Assumes chief ray (single ray) was last traced
         x = self.optic.surface_group.x[-1, :]
         y = self.optic.surface_group.y[-1, :]
         z = self.optic.surface_group.z[-1, :]
-        if be.size(x) != 1:
-            raise ValueError("Chief ray cannot be determined. It must be traced alone.")
+        if be.size(x) != 1: # Should be a single point for chief ray
+            raise ValueError(
+                "Reference sphere calculation expects a single chief ray to have been traced."
+            )
+        # Radius of reference sphere centered at (x,y,z) passing through pupil_z on axis
         R = be.sqrt(x**2 + y**2 + (z - pupil_z) ** 2)
-        return x, y, z, R
+        return x, y, z, R # Sphere center is (x,y,z) of chief ray on image
 
     def _get_path_length(self, xc, yc, zc, R, wavelength):
-        """
-        Calculate optical path difference from image to reference sphere.
-        """
-        opd_chief = self.optic.surface_group.opd[-1, :]
-        opd_img = self._opd_image_to_xp(xc, yc, zc, R, wavelength)
-        return opd_chief - opd_img, opd_img
+        """Calculate optical path difference from image to reference sphere."""
+        opd_chief = self.optic.surface_group.opd[-1, :] # OPD to image plane
+        # opd_img is path length from image plane to reference sphere
+        opd_img_to_xp, t_values = self._opd_image_to_xp(xc, yc, zc, R, wavelength)
+        # Total OPD to ref sphere = OPD to image - path from image to ref sphere
+        return opd_chief - opd_img_to_xp, t_values
 
     def _correct_tilt(self, field, opd, x=None, y=None):
-        """
-        Correct tilt in OPD based on field angle and distribution.
-        """
+        """Correct tilt in OPD based on field angle and distribution."""
         correction = 0
-        if self.optic.field_type == "angle":
+        if not self.optic.field_type:
+            pass # No correction if field type not set
+        elif isinstance(self.optic.field_type, AngleField):
             Hx, Hy = field
-            max_f = self.optic.fields.max_field
-            x_tilt = max_f * Hx
-            y_tilt = max_f * Hy
+            max_f = self.optic.fields.max_field # Max field angle in degrees
+            x_tilt_angle = max_f * Hx
+            y_tilt_angle = max_f * Hy
+
+            # Use distribution points if x, y not provided (for general rays)
+            # Use provided x, y if correcting a specific point (like chief ray at x=0,y=0)
             xs = self.distribution.x if x is None else x
             ys = self.distribution.y if y is None else y
+
             EPD = self.optic.paraxial.EPD()
-            correction = (1 - xs) * be.sin(be.radians(x_tilt)) * EPD / 2 + (
-                1 - ys
-            ) * be.sin(be.radians(y_tilt)) * EPD / 2
+            # OPD correction = (pupil_coord) * sin(field_angle) * (EPD/2)
+            # (1-xs) or similar might be specific to pupil coordinate definition
+            # For normalized pupil coords -1 to 1, it's typically xs * sin * EPD/2
+            # Assuming self.distribution.x/y are normalized pupil coords.
+            # The (1-xs) term seems unusual, might be from a specific setup.
+            # Standard tilt term is proportional to pupil coordinate * field angle.
+            # Let's use a more standard interpretation if (1-xs) is problematic.
+            # For now, keeping original structure:
+            correction = (1 - xs) * be.sin(be.radians(x_tilt_angle)) * EPD / 2 + \
+                         (1 - ys) * be.sin(be.radians(y_tilt_angle)) * EPD / 2
         return opd - correction
 
     def _opd_image_to_xp(self, xc, yc, zc, R, wavelength):
+        """Compute path length from image plane point to reference sphere.
+
+        This calculates the distance 't' along the ray from its intersection
+        with the image plane to the reference sphere. The path length is n*t.
+
+        Args:
+            xc (float): X-coordinate of the reference sphere center.
+            yc (float): Y-coordinate of the reference sphere center.
+            zc (float): Z-coordinate of the reference sphere center.
+            R (float): Radius of the reference sphere.
+            wavelength (float): Wavelength for refractive index.
+
+        Returns:
+            tuple[be.ndarray, be.ndarray]:
+                - Optical path length (n*t) from image to reference sphere.
+                - Geometric distance (t) from image to reference sphere.
+
         """
-        Compute propagation distance from image plane to exit pupil.
-        """
+        # Ray data at the image surface (assuming last traced rays)
         xr = self.optic.surface_group.x[-1, :]
         yr = self.optic.surface_group.y[-1, :]
         zr = self.optic.surface_group.z[-1, :]
+        # Direction cosines FROM image plane TOWARDS exit pupil (reverse of ray)
         L = -self.optic.surface_group.L[-1, :]
         M = -self.optic.surface_group.M[-1, :]
         N = -self.optic.surface_group.N[-1, :]
-        a = L**2 + M**2 + N**2
-        b = 2 * (L * (xr - xc) + M * (yr - yc) + N * (zr - zc))
-        c = (
-            xr**2
-            + yr**2
-            + zr**2
-            - 2 * (xr * xc + yr * yc + zr * zc)
-            + xc**2
-            + yc**2
-            + zc**2
-            - R**2
-        )
-        d = b**2 - 4 * a * c
-        t = (-b - be.sqrt(d)) / (2 * a)
-        mask = t < 0
-        t = be.where(mask, (-b + be.sqrt(d)) / (2 * a), t)
-        n = self.optic.image_surface.material_post.n(wavelength)
-        return n * t
+
+        # Solve for t: (xr+L*t - xc)^2 + (yr+M*t - yc)^2 + (zr+N*t - zc)^2 = R^2
+        # This expands to a quadratic equation a*t^2 + b*t + c = 0
+        # a = L^2 + M^2 + N^2 (should be 1 if L,M,N are normalized, but be safe)
+        # b = 2 * [L(xr-xc) + M(yr-yc) + N(zr-zc)]
+        # c = (xr-xc)^2 + (yr-yc)^2 + (zr-zc)^2 - R^2
+
+        a_coeff = L**2 + M**2 + N**2
+        b_coeff = 2 * (L * (xr - xc) + M * (yr - yc) + N * (zr - zc))
+        c_coeff = (xr - xc)**2 + (yr - yc)**2 + (zr - zc)**2 - R**2
+
+        discriminant = b_coeff**2 - 4 * a_coeff * c_coeff
+        # Ensure discriminant is non-negative for real solutions
+        discriminant = be.maximum(discriminant, 0)
+
+        # Choose the correct root for t (distance along the ray)
+        # Typically, we want the intersection closer to the image plane or in the
+        # direction of the ray propagation.
+        # If ray comes from image plane (xr,yr,zr) along (L,M,N) to sphere.
+        # The two solutions for t are (-b +/- sqrt(d)) / (2a).
+        # We usually want the smallest positive t, or context-dependent choice.
+        t1 = (-b_coeff - be.sqrt(discriminant)) / (2 * a_coeff)
+        t2 = (-b_coeff + be.sqrt(discriminant)) / (2 * a_coeff)
+
+        # Heuristic: choose the t that makes sense (e.g. smaller magnitude, or positive)
+        # Often, one solution is physically relevant. If image is outside sphere,
+        # one t will be towards sphere, other away.
+        # The original code used a mask t < 0, implying t should be positive.
+        t_final = be.where(t1 < 0, t2, t1) # Prefer t1 if positive, else t2
+        # This might need refinement based on geometry (e.g. if image inside sphere)
+        # A common choice is the one that leads to the exit pupil.
+        # The original code's mask: t = be.where(mask, (-b + be.sqrt(d)) / (2 * a), t)
+        # where t was t1. This means if t1 < 0, it chose t2.
+        # This is equivalent to choosing the positive root if one is positive and
+        # the other negative, or the smaller positive root if both are positive.
+        # Let's ensure we are picking the correct intersection.
+        # Assuming rays propagate from image towards XP, we expect positive t.
+        # If both t1,t2 are positive, smaller one is usually XP side.
+        # If one positive, one negative, take positive.
+        # If both negative, ray is moving away from sphere center from image.
+
+        # Re-evaluating choice of t:
+        # If a_coeff is near zero (e.g., grazing incidence, problematic), handle separately.
+        # We are looking for intersection of line P = P_img + t*V_ray with sphere.
+        # V_ray is (L,M,N). P_img is (xr,yr,zr).
+        # The original code's choice seems to be:
+        t_val = (-b_coeff - be.sqrt(discriminant)) / (2 * a_coeff) # This is t1
+        mask_t_neg = t_val < 0
+        t_final = be.where(mask_t_neg, (-b_coeff + be.sqrt(discriminant)) / (2 * a_coeff), t_val)
+
+        n_val = self.optic.image_surface.material_post.n(wavelength)
+        return n_val * t_final, t_final
 
 
 class OPDFan(Wavefront):
@@ -246,25 +340,20 @@ class OPDFan(Wavefront):
 
     Args:
         optic (Optic): The optic for which the wavefront error is calculated.
-        fields (str or list, optional): The fields for which the wavefront
+        fields (str | list, optional): The fields for which the wavefront
             error is calculated. Defaults to 'all'.
-        wavelengths (str or list, optional): The wavelengths for which the
+        wavelengths (str | list, optional): The wavelengths for which the
             wavefront error is calculated. Defaults to 'all'.
         num_rays (int, optional): The number of rays used to calculate the
             wavefront error. Defaults to 100.
 
     Attributes:
         pupil_coord (be.ndarray): The coordinates of the pupil.
-        data (list): A nested list where `data[field_idx][wavelength_idx]`
-            contains `WavefrontData` for that specific field and wavelength.
-            This is populated by the parent `Wavefront` class.
-
-    Methods:
-        view: Plots the wavefront error.
 
     """
 
     def __init__(self, optic, fields="all", wavelengths="all", num_rays=100):
+        """Initialize OPDFan."""
         self.pupil_coord = be.linspace(-1, 1, num_rays)
         super().__init__(
             optic,
@@ -275,7 +364,7 @@ class OPDFan(Wavefront):
         )
 
     def view(self, figsize=(10, 3)):
-        """Visualizes the wavefront error for different fields and wavelengths.
+        """Visualize the wavefront error for different fields and wavelengths.
 
         Args:
             figsize (tuple, optional): The size of the figure.
@@ -292,224 +381,247 @@ class OPDFan(Wavefront):
             sharey=True,
         )
 
-        # assure axes is a 2D array
-        axs = np.atleast_2d(axs)
+        axs = np.atleast_2d(axs) # Ensure axs is 2D for consistent indexing
 
-        for i, field in enumerate(self.fields):
-            for wavelength in self.wavelengths:
-                data = self.get_data(field, wavelength)
+        for i, field_coord in enumerate(self.fields):
+            for wl_val in self.wavelengths:
+                data = self.get_data(field_coord, wl_val)
 
-                wx = data.opd[self.num_rays :]
-                wy = data.opd[: self.num_rays]
+                # Assuming 'cross' distribution: first num_rays are Py, next are Px
+                wx = data.opd[self.num_rays :] # OPD for Px scan (sagittal)
+                wy = data.opd[: self.num_rays] # OPD for Py scan (tangential)
 
                 intensity_x = data.intensity[self.num_rays :]
                 intensity_y = data.intensity[: self.num_rays]
 
-                wx[intensity_x == 0] = np.nan
-                wy[intensity_y == 0] = np.nan
+                # Set OPD to NaN where intensity is zero (vignetted rays)
+                wx = be.where(intensity_x == 0, be.nan, wx)
+                wy = be.where(intensity_y == 0, be.nan, wy)
+
 
                 axs[i, 0].plot(
                     be.to_numpy(self.pupil_coord),
                     be.to_numpy(wy),
                     zorder=3,
-                    label=f"{wavelength:.4f} µm",
+                    label=f"{wl_val:.4f} µm",
                 )
-                axs[i, 0].grid()
+                axs[i, 0].grid(True)
                 axs[i, 0].axhline(y=0, lw=1, color="gray")
                 axs[i, 0].axvline(x=0, lw=1, color="gray")
-                axs[i, 0].set_xlabel("$P_y$")
+                axs[i, 0].set_xlabel("$P_y$ (Pupil Y-coordinate)")
                 axs[i, 0].set_ylabel("Wavefront Error (waves)")
                 axs[i, 0].set_xlim((-1, 1))
-                axs[i, 0].set_title(f"Hx: {field[0]:.3f}, Hy: {field[1]:.3f}")
+                axs[i, 0].set_title(f"Hx: {field_coord[0]:.3f}, Hy: {field_coord[1]:.3f} (Tangential)")
 
                 axs[i, 1].plot(
                     be.to_numpy(self.pupil_coord),
                     be.to_numpy(wx),
                     zorder=3,
-                    label=f"{wavelength:.4f} µm",
+                    label=f"{wl_val:.4f} µm",
                 )
-                axs[i, 1].grid()
+                axs[i, 1].grid(True)
                 axs[i, 1].axhline(y=0, lw=1, color="gray")
                 axs[i, 1].axvline(x=0, lw=1, color="gray")
-                axs[i, 1].set_xlabel("$P_x$")
-                axs[i, 1].set_ylabel("Wavefront Error (waves)")
-                axs[i, 0].set_xlim((-1, 1))
-                axs[i, 1].set_title(f"Hx: {field[0]:.3f}, Hy: {field[1]:.3f}")
+                axs[i, 1].set_xlabel("$P_x$ (Pupil X-coordinate)")
+                # axs[i, 1].set_ylabel("Wavefront Error (waves)") # Shared Y
+                axs[i, 1].set_xlim((-1, 1))
+                axs[i, 1].set_title(f"Hx: {field_coord[0]:.3f}, Hy: {field_coord[1]:.3f} (Sagittal)")
 
-        plt.legend(loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=3)
-        plt.subplots_adjust(top=1)
+        # Common legend for the last plotted axes or figure
+        if axs.size > 0:
+            handles, labels = axs[-1, -1].get_legend_handles_labels()
+            # Place legend below all subplots
+            fig = axs[0,0].get_figure()
+            fig.legend(handles, labels, loc='lower center',
+                       bbox_to_anchor=(0.5, -0.05 - (0.1/num_rows)), ncol=3) # Adjust bbox
+
         plt.tight_layout()
+        # Adjust layout to make space for the figure legend
+        plt.subplots_adjust(bottom=0.15 + (0.1/num_rows if num_rows > 1 else 0.2))
         plt.show()
 
 
 class OPD(Wavefront):
-    """Represents an Optical Path Difference (OPD) wavefront.
+    """Represents an Optical Path Difference (OPD) wavefront map.
 
     Args:
         optic (Optic): The optic object.
-        field (tuple): The field at which to calculate the OPD.
-        wavelength (float): The wavelength of the wavefront.
-        num_rings (int, optional): The number of rings for ray tracing.
-            Defaults to 15.
+        field (tuple[float, float]): The field (Hx, Hy) to calculate OPD for.
+        wavelength (float): The wavelength of the wavefront in microns.
+        num_rings (int, optional): The number of rings for 'hexapolar'
+            pupil sampling. Defaults to 15.
 
     Attributes:
-        optic (Optic): The optic object.
-        field (tuple[float, float]): The field coordinates (Hx, Hy).
-        wavelength (float): The wavelength of the wavefront in micrometers.
-        num_rings (int): The number of rings used for pupil sampling.
-        distribution (BaseDistribution): The pupil sampling distribution instance.
-        data (dict): A dictionary mapping (field, wavelength) tuples to
-            `WavefrontData` objects. Inherited from `Wavefront`.
-
-    Methods:
-        view(projection='2d', num_points=256, figsize=(7, 5.5)): Visualizes
-            the OPD wavefront.
-        rms(): Calculates the root mean square (RMS) of the OPD wavefront.
+        field (tuple[float, float]): Field coordinates for this OPD map.
+        wavelength (float): Wavelength for this OPD map.
+        # Other attributes inherited from Wavefront
 
     """
 
     def __init__(self, optic, field, wavelength, num_rings=15):
+        """Initialize OPD calculation for a specific field and wavelength."""
         super().__init__(
             optic,
-            fields=[field],
-            wavelengths=[wavelength],
-            num_rays=num_rings,
+            fields=[field], # OPD is for a single field
+            wavelengths=[wavelength], # and single wavelength
+            num_rays=num_rings, # num_rays for hexapolar is num_rings
             distribution="hexapolar",
         )
+        # Store the specific field and wavelength for convenience
+        self.field = field
+        self.wavelength = wavelength
+
 
     def view(self, projection="2d", num_points=256, figsize=(7, 5.5)):
-        """Visualizes the OPD wavefront.
+        """Visualize the OPD wavefront map.
 
         Args:
-            projection (str, optional): The projection type. Defaults to '2d'.
-            num_points (int, optional): The number of points for interpolation.
-                Defaults to 256.
-            figsize (tuple, optional): The figure size. Defaults to (7, 5.5).
+            projection (str, optional): Type of plot: '2d' (imshow) or
+                '3d' (surface plot). Defaults to '2d'.
+            num_points (int, optional): Number of points for grid interpolation
+                if plotting. Defaults to 256.
+            figsize (tuple, optional): Figure size. Defaults to (7, 5.5).
 
         Raises:
-            ValueError: If the projection is not '2d' or '3d'.
+            ValueError: If an unsupported projection type is requested.
 
         """
-        opd_map = self.generate_opd_map(num_points)
+        opd_map_data = self.generate_opd_map(num_points)
         if projection == "2d":
-            self._plot_2d(data=opd_map, figsize=figsize)
+            self._plot_2d(data=opd_map_data, figsize=figsize)
         elif projection == "3d":
-            self._plot_3d(data=opd_map, figsize=figsize)
+            self._plot_3d(data=opd_map_data, figsize=figsize)
         else:
             raise ValueError('OPD projection must be "2d" or "3d".')
 
     def rms(self):
-        """Calculates the root mean square (RMS) of the OPD wavefront.
+        """Calculate the root mean square (RMS) of the OPD wavefront.
 
         Returns:
-            float: The RMS value.
+            float: The RMS wavefront error in waves.
 
         """
-        data = self.get_data(self.fields[0], self.wavelengths[0])
-        return be.sqrt(be.mean(data.opd**2))
+        # Data is stored for self.fields[0] and self.wavelengths[0]
+        data = self.get_data(self.field, self.wavelength)
+        # Ensure only valid (non-NaN if any) OPD points are used for RMS
+        valid_opd = data.opd[~be.isnan(data.opd)]
+        if valid_opd.size == 0:
+            return 0.0 # Or handle as NaN/error if no valid points
+        return be.sqrt(be.mean(valid_opd**2))
 
     def _plot_2d(self, data, figsize=(7, 5.5)):
-        """Plots the 2D visualization of the OPD wavefront.
-
-        Args:
-            data (dict[str, np.ndarray]): The OPD map data, where keys are 'x', 'y', 'z'
-                and values are NumPy arrays suitable for plotting.
-            figsize (tuple, optional): The figure size. Defaults to (7, 5.5).
-
-        """
+        """Plot the 2D visualization of the OPD wavefront."""
         _, ax = plt.subplots(figsize=figsize)
+        # data['z'] is already a numpy array from generate_opd_map
         im = ax.imshow(
-            np.flipud(data["z"]), extent=[-1, 1, -1, 1]
-        )  # np.flipud is fine here as data['z'] is already numpy
+            np.flipud(data["z"]), extent=[-1, 1, -1, 1],
+            cmap='viridis', interpolation='bilinear'
+        )
 
-        ax.set_xlabel("Pupil X")
-        ax.set_ylabel("Pupil Y")
-        ax.set_title(f"OPD Map: RMS={self.rms():.3f} waves")
+        ax.set_xlabel("Pupil X (normalized)")
+        ax.set_ylabel("Pupil Y (normalized)")
+        ax.set_title(f"OPD Map: Hx={self.field[0]}, Hy={self.field[1]}; RMS={self.rms():.3f} waves")
 
-        cbar = plt.colorbar(im)
+        cbar = plt.colorbar(im, ax=ax)
         cbar.ax.get_yaxis().labelpad = 15
         cbar.ax.set_ylabel("OPD (waves)", rotation=270)
         plt.show()
 
     def _plot_3d(self, data, figsize=(7, 5.5)):
-        """Plots the 3D visualization of the OPD wavefront.
-
-        Args:
-            data (dict[str, np.ndarray]): The OPD map data, where keys are 'x', 'y', 'z'
-                and values are NumPy arrays suitable for plotting.
-            figsize (tuple, optional): The figure size. Defaults to (7, 5.5).
-
-        """
+        """Plot the 3D visualization of the OPD wavefront."""
         fig, ax = plt.subplots(subplot_kw={"projection": "3d"}, figsize=figsize)
 
+        # data['x'], data['y'], data['z'] are numpy arrays
         surf = ax.plot_surface(
-            data["x"],
-            data["y"],
-            data["z"],
-            rstride=1,
-            cstride=1,
-            cmap="viridis",
-            linewidth=0,
-            antialiased=False,
+            data["x"], data["y"], data["z"],
+            rstride=1, cstride=1, cmap="viridis",
+            linewidth=0, antialiased=False
         )
 
-        ax.set_xlabel("Pupil X")
-        ax.set_ylabel("Pupil Y")
+        ax.set_xlabel("Pupil X (normalized)")
+        ax.set_ylabel("Pupil Y (normalized)")
         ax.set_zlabel("OPD (waves)")
-        ax.set_title(f"OPD Map: RMS={self.rms():.3f} waves")
+        ax.set_title(f"OPD Map: Hx={self.field[0]}, Hy={self.field[1]}; RMS={self.rms():.3f} waves")
 
         fig.colorbar(surf, ax=ax, shrink=0.5, aspect=10, pad=0.15)
         fig.tight_layout()
         plt.show()
 
     def generate_opd_map(self, num_points=256):
-        """Generates the OPD map data.
+        """Generate the OPD map data by interpolating scattered ray data.
 
         Args:
             num_points (int, optional): The number of points for interpolation
                 along each axis of the grid. Defaults to 256.
 
         Returns:
-            dict[str, np.ndarray]: A dictionary containing the interpolated OPD map,
-            with keys 'x', 'y', and 'z'. The values are NumPy arrays.
+            dict[str, np.ndarray]: A dictionary containing the interpolated
+            OPD map, with keys 'x', 'y', and 'z' (OPD values).
+            The values are NumPy arrays.
 
         """
-        data = self.get_data(self.fields[0], self.wavelengths[0])
-        x = be.to_numpy(self.distribution.x)
-        y = be.to_numpy(self.distribution.y)
-        z = be.to_numpy(data.opd)
-        intensity = be.to_numpy(data.intensity)
+        # Data is stored for self.fields[0] and self.wavelengths[0]
+        wavefront_data_obj = self.get_data(self.field, self.wavelength)
 
-        x_interp, y_interp = np.meshgrid(
+        # Convert backend arrays to NumPy for griddata and plotting
+        # Distribution coordinates (normalized pupil)
+        x_pupil = be.to_numpy(self.distribution.x).flatten()
+        y_pupil = be.to_numpy(self.distribution.y).flatten()
+        opd_values = be.to_numpy(wavefront_data_obj.opd).flatten()
+        intensity_values = be.to_numpy(wavefront_data_obj.intensity).flatten()
+
+        # Create a mask for valid points (intensity > 0 and OPD is not NaN)
+        # Some rays might be vignetted (intensity=0) or fail tracing (opd=NaN)
+        valid_mask = (intensity_values > 0) & (~np.isnan(opd_values))
+
+        if not np.any(valid_mask):
+            # If no valid points, return an empty or NaN map
+            x_interp, y_interp = np.meshgrid(
+                np.linspace(-1, 1, num_points),
+                np.linspace(-1, 1, num_points),
+            )
+            return dict(x=x_interp, y=y_interp, z=np.full_like(x_interp, np.nan))
+
+        points_for_griddata = np.column_stack((x_pupil[valid_mask], y_pupil[valid_mask]))
+        values_for_griddata = opd_values[valid_mask]
+
+        # Create grid for interpolation
+        grid_x, grid_y = np.meshgrid(
             np.linspace(-1, 1, num_points),
             np.linspace(-1, 1, num_points),
         )
 
-        points = np.column_stack((x.flatten(), y.flatten()))
-        values = z.flatten() * intensity.flatten()
+        # Interpolate OPD data onto the grid
+        # Fill un-found points with NaN to represent areas outside pupil or vignetted
+        opd_interp = griddata(
+            points_for_griddata, values_for_griddata, (grid_x, grid_y),
+            method="cubic", fill_value=np.nan
+        )
 
-        z_interp = griddata(points, values, (x_interp, y_interp), method="cubic")
+        # Mask out areas outside the unit circle (pupil boundary)
+        pupil_mask = (grid_x**2 + grid_y**2) > 1
+        opd_interp[pupil_mask] = np.nan
 
-        data = dict(x=x_interp, y=y_interp, z=z_interp)
-        return data
+        return dict(x=grid_x, y=grid_y, z=opd_interp)
 
 
 class ZernikeOPD(ZernikeFit, OPD):
-    """Represents a Zernike Optical Path Difference (OPD) calculation.
+    """Represents a Zernike polynomial fit to an OPD wavefront.
 
-    This class inherits from both the ZernikeFit and OPD classes. It first
-    generates the OPD map(s), then fits Zernike polynomials to the map(s).
+    This class inherits from both `ZernikeFit` (for fitting capabilities)
+    and `OPD` (for OPD calculation). It first calculates the OPD map for a
+    given field and wavelength, then fits Zernike polynomials to this OPD data.
 
     Args:
-        optic (object): The optic object representing the optical system.
-        field (tuple): The field used for the calculation.
-        wavelength (float): The wavelength of light used in the calculation.
-        num_rings (int, optional): The number of rings used in the Zernike
-            calculation. Default is 15.
-        zernike_type (str, optional): The type of Zernike polynomials used.
-            Default is 'fringe'. See zernike module for more information.
-        num_terms (int, optional): The number of Zernike terms used in the
-            calculation. Default is 37.
+        optic (Optic): The optical system.
+        field (tuple[float, float]): Field coordinates (Hx, Hy).
+        wavelength (float): Wavelength in microns.
+        num_rings (int, optional): Number of rings for hexapolar pupil
+            sampling if generating OPD. Defaults to 15.
+        zernike_type (str, optional): Type of Zernike polynomials to use
+            (e.g., "fringe", "standard", "noll"). Defaults to "fringe".
+        num_terms (int, optional): Number of Zernike terms to fit.
+            Defaults to 37.
 
     """
 
@@ -522,12 +634,21 @@ class ZernikeOPD(ZernikeFit, OPD):
         zernike_type="fringe",
         num_terms=37,
     ):
+        """Initialize ZernikeOPD analysis."""
+        # First, initialize OPD to calculate wavefront data
         OPD.__init__(self, optic, field, wavelength, num_rings)
 
-        x = self.distribution.x
-        y = self.distribution.y
+        # Pupil coordinates from the distribution used by OPD
+        # These are normalized pupil coordinates.
+        x_pupil = self.distribution.x
+        y_pupil = self.distribution.y
 
-        data = self.get_data(self.fields[0], self.wavelengths[0])
-        z = data.opd
+        # OPD values from the calculated wavefront data
+        # Data is stored for self.fields[0] (which is `field`)
+        # and self.wavelengths[0] (which is `wavelength`)
+        wavefront_data_obj = self.get_data(field, wavelength)
+        opd_values = wavefront_data_obj.opd # These are in waves
 
-        ZernikeFit.__init__(self, x, y, z, zernike_type, num_terms)
+        # Now, initialize ZernikeFit with these pupil coords and OPD values
+        ZernikeFit.__init__(self, x_pupil, y_pupil, opd_values,
+                            zernike_type, num_terms)
