@@ -16,7 +16,9 @@ from typing import Union
 
 from optiland.aberrations import Aberrations
 from optiland.aperture import Aperture
+from optiland.apodization import BaseApodization
 from optiland.fields import Field, FieldGroup, make_field_group
+from optiland.materials.base import BaseMaterial
 from optiland.optic.optic_updater import OpticUpdater
 from optiland.paraxial import Paraxial
 from optiland.pickup import PickupManager
@@ -65,6 +67,7 @@ class Optic:
 
         self.polarization = "ignore"
 
+        self.apodization = None
         self.pickups = PickupManager(self)
         self.solves = SolveManager(self)
         self.obj_space_telecentric = False
@@ -251,6 +254,16 @@ class Optic:
         """
         self._updater.set_index(value, surface_number)
 
+    def set_material(self, material: BaseMaterial, surface_number: int):
+        """Set the material of a surface.
+
+        Args:
+            material (BaseMaterial): The material.
+            surface_number (int): The index of the surface.
+
+        """
+        self._updater.set_material(material, surface_number)
+
     def set_asphere_coeff(self, value, surface_number, aspher_coeff_idx):
         """Set the asphere coefficient on a surface
 
@@ -273,6 +286,14 @@ class Optic:
 
         """
         self._updater.set_polarization(polarization)
+
+    def set_apodization(self, apodization: BaseApodization):
+        """Set the apodization of the optical system.
+
+        Args:
+            apodization (Apodization): The apodization object to set.
+        """
+        self._updater.set_apodization(apodization)
 
     def scale_system(self, scale_factor):
         """Scales the optical system by a given scale factor.
@@ -302,6 +323,17 @@ class Optic:
         optical axis at the image location.
         """
         self._updater.image_solve()
+
+    def flip(self):
+        """Flips the optical system.
+
+        This reverses the order of surfaces (excluding object and image planes),
+        their geometries, and materials. Pickups and solves referencing surface
+        indices are updated accordingly. The coordinate system is adjusted such
+        that the new first optical surface (originally the last one in the
+        flipped segment) is placed at z=0.0.
+        """
+        self._updater.flip()
 
     def draw(
         self,
@@ -337,7 +369,7 @@ class Optic:
 
         """
         viewer = OpticViewer(self)
-        viewer.view(
+        fig = viewer.view(
             fields,
             wavelengths,
             num_rays,
@@ -348,6 +380,7 @@ class Optic:
             title=title,
             reference=reference,
         )
+        return fig
 
     def draw3D(
         self,
@@ -457,6 +490,7 @@ class Optic:
             "aperture": self.aperture.to_dict() if self.aperture else None,
             "fields": self.fields.to_dict(),
             "wavelengths": self.wavelengths.to_dict(),
+            "apodization": self.apodization.to_dict() if self.apodization else None,
             "pickups": self.pickups.to_dict(),
             "solves": self.solves.to_dict(),
             "surface_group": self.surface_group.to_dict(),
@@ -483,6 +517,11 @@ class Optic:
         optic.surface_group = SurfaceGroup.from_dict(data["surface_group"])
         optic.fields = FieldGroup.from_dict(data["fields"])
         optic.wavelengths = WavelengthGroup.from_dict(data["wavelengths"])
+
+        apodization_data = data.get("apodization")
+        if apodization_data:
+            optic.apodization = BaseApodization.from_dict(apodization_data)
+
         optic.pickups = PickupManager.from_dict(optic, data["pickups"])
         optic.solves = SolveManager.from_dict(optic, data["solves"])
 
