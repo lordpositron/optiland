@@ -268,7 +268,7 @@ class Paraxial:
                 u0_val = 0.1 * ap_value / y[stop_index]
                 return u0_val * (epl_val - obj_z_val)
         # Should not be reached if aperture types are exhaustive
-        return None # Or raise error
+        return None  # Or raise error
 
     def XPL(self):
         """Calculate the exit pupil location (XPL).
@@ -376,7 +376,7 @@ class Paraxial:
         """
         stop_index = self.optic.surface_group.stop_index
         y0_val = 0
-        u0_val = 0.1 # Arbitrary small angle for reverse trace
+        u0_val = 0.1  # Arbitrary small angle for reverse trace
         pos = self.optic.surface_group.positions
         # z0 for reverse trace is distance from last surface to stop surface
         z0_rev_trace = pos[-1] - pos[stop_index]

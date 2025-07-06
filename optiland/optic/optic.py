@@ -75,7 +75,9 @@ class Optic:
     def _initialize_attributes(self):
         """Reset the optical system to its initial state."""
         self.aperture = None
-        self.field_type: BaseFieldStrategy | None = None # Will hold a strategy instance
+        self.field_type: BaseFieldStrategy | None = (
+            None  # Will hold a strategy instance
+        )
 
         self.surface_group = SurfaceGroup()
         self.fields = FieldGroup()

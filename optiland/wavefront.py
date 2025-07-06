@@ -19,7 +19,7 @@ from scipy.interpolate import griddata
 
 import optiland.backend as be
 from optiland.distribution import create_distribution
-from optiland.fields.strategies import AngleField # For type checking
+from optiland.fields.strategies import AngleField  # For type checking
 from optiland.zernike import ZernikeFit
 
 
@@ -37,12 +37,12 @@ class WavefrontData:
 
     """
 
-    pupil_x: be.ndarray
-    pupil_y: be.ndarray
-    pupil_z: be.ndarray
-    opd: be.ndarray
-    intensity: be.ndarray
-    radius: be.ndarray
+    pupil_x: be.ndarray  # type: ignore
+    pupil_y: be.ndarray  # type: ignore
+    pupil_z: be.ndarray  # type: ignore
+    opd: be.ndarray  # type: ignore
+    intensity: be.ndarray  # type: ignore
+    radius: be.ndarray  # type: ignore
 
 
 class Wavefront:
@@ -209,17 +209,18 @@ class Wavefront:
         x = self.optic.surface_group.x[-1, :]
         y = self.optic.surface_group.y[-1, :]
         z = self.optic.surface_group.z[-1, :]
-        if be.size(x) != 1: # Should be a single point for chief ray
+        if be.size(x) != 1:  # Should be a single point for chief ray
             raise ValueError(
-                "Reference sphere calculation expects a single chief ray to have been traced."
+                "Reference sphere calculation expects a single chief ray to "
+                "have been traced."
             )
         # Radius of reference sphere centered at (x,y,z) passing through pupil_z on axis
         R = be.sqrt(x**2 + y**2 + (z - pupil_z) ** 2)
-        return x, y, z, R # Sphere center is (x,y,z) of chief ray on image
+        return x, y, z, R  # Sphere center is (x,y,z) of chief ray on image
 
     def _get_path_length(self, xc, yc, zc, R, wavelength):
         """Calculate optical path difference from image to reference sphere."""
-        opd_chief = self.optic.surface_group.opd[-1, :] # OPD to image plane
+        opd_chief = self.optic.surface_group.opd[-1, :]  # OPD to image plane
         # opd_img is path length from image plane to reference sphere
         opd_img_to_xp, t_values = self._opd_image_to_xp(xc, yc, zc, R, wavelength)
         # Total OPD to ref sphere = OPD to image - path from image to ref sphere
@@ -229,15 +230,15 @@ class Wavefront:
         """Correct tilt in OPD based on field angle and distribution."""
         correction = 0
         if not self.optic.field_type:
-            pass # No correction if field type not set
+            pass  # No correction if field type not set
         elif isinstance(self.optic.field_type, AngleField):
             Hx, Hy = field
-            max_f = self.optic.fields.max_field # Max field angle in degrees
+            max_f = self.optic.fields.max_field  # Max field angle in degrees
             x_tilt_angle = max_f * Hx
             y_tilt_angle = max_f * Hy
 
             # Use distribution points if x, y not provided (for general rays)
-            # Use provided x, y if correcting a specific point (like chief ray at x=0,y=0)
+            # Use provided x, y if correcting a specific point (like chief ray at x=y=0)
             xs = self.distribution.x if x is None else x
             ys = self.distribution.y if y is None else y
 
@@ -250,8 +251,9 @@ class Wavefront:
             # Standard tilt term is proportional to pupil coordinate * field angle.
             # Let's use a more standard interpretation if (1-xs) is problematic.
             # For now, keeping original structure:
-            correction = (1 - xs) * be.sin(be.radians(x_tilt_angle)) * EPD / 2 + \
-                         (1 - ys) * be.sin(be.radians(y_tilt_angle)) * EPD / 2
+            correction = (1 - xs) * be.sin(be.radians(x_tilt_angle)) * EPD / 2 + (
+                1 - ys
+            ) * be.sin(be.radians(y_tilt_angle)) * EPD / 2
         return opd - correction
 
     def _opd_image_to_xp(self, xc, yc, zc, R, wavelength):
@@ -290,7 +292,7 @@ class Wavefront:
 
         a_coeff = L**2 + M**2 + N**2
         b_coeff = 2 * (L * (xr - xc) + M * (yr - yc) + N * (zr - zc))
-        c_coeff = (xr - xc)**2 + (yr - yc)**2 + (zr - zc)**2 - R**2
+        c_coeff = (xr - xc) ** 2 + (yr - yc) ** 2 + (zr - zc) ** 2 - R**2
 
         discriminant = b_coeff**2 - 4 * a_coeff * c_coeff
         # Ensure discriminant is non-negative for real solutions
@@ -309,7 +311,7 @@ class Wavefront:
         # Often, one solution is physically relevant. If image is outside sphere,
         # one t will be towards sphere, other away.
         # The original code used a mask t < 0, implying t should be positive.
-        t_final = be.where(t1 < 0, t2, t1) # Prefer t1 if positive, else t2
+        t_final = be.where(t1 < 0, t2, t1)  # Prefer t1 if positive, else t2
         # This might need refinement based on geometry (e.g. if image inside sphere)
         # A common choice is the one that leads to the exit pupil.
         # The original code's mask: t = be.where(mask, (-b + be.sqrt(d)) / (2 * a), t)
@@ -323,13 +325,16 @@ class Wavefront:
         # If both negative, ray is moving away from sphere center from image.
 
         # Re-evaluating choice of t:
-        # If a_coeff is near zero (e.g., grazing incidence, problematic), handle separately.
+        # If a_coeff is near zero (e.g., grazing incidence, problematic), handle
+        # separately.
         # We are looking for intersection of line P = P_img + t*V_ray with sphere.
         # V_ray is (L,M,N). P_img is (xr,yr,zr).
         # The original code's choice seems to be:
-        t_val = (-b_coeff - be.sqrt(discriminant)) / (2 * a_coeff) # This is t1
+        t_val = (-b_coeff - be.sqrt(discriminant)) / (2 * a_coeff)  # This is t1
         mask_t_neg = t_val < 0
-        t_final = be.where(mask_t_neg, (-b_coeff + be.sqrt(discriminant)) / (2 * a_coeff), t_val)
+        t_final = be.where(
+            mask_t_neg, (-b_coeff + be.sqrt(discriminant)) / (2 * a_coeff), t_val
+        )
 
         n_val = self.optic.image_surface.material_post.n(wavelength)
         return n_val * t_final, t_final
@@ -381,15 +386,15 @@ class OPDFan(Wavefront):
             sharey=True,
         )
 
-        axs = np.atleast_2d(axs) # Ensure axs is 2D for consistent indexing
+        axs = np.atleast_2d(axs)  # Ensure axs is 2D for consistent indexing
 
         for i, field_coord in enumerate(self.fields):
             for wl_val in self.wavelengths:
                 data = self.get_data(field_coord, wl_val)
 
                 # Assuming 'cross' distribution: first num_rays are Py, next are Px
-                wx = data.opd[self.num_rays :] # OPD for Px scan (sagittal)
-                wy = data.opd[: self.num_rays] # OPD for Py scan (tangential)
+                wx = data.opd[self.num_rays :]  # OPD for Px scan (sagittal)
+                wy = data.opd[: self.num_rays]  # OPD for Py scan (tangential)
 
                 intensity_x = data.intensity[self.num_rays :]
                 intensity_y = data.intensity[: self.num_rays]
@@ -397,7 +402,6 @@ class OPDFan(Wavefront):
                 # Set OPD to NaN where intensity is zero (vignetted rays)
                 wx = be.where(intensity_x == 0, be.nan, wx)
                 wy = be.where(intensity_y == 0, be.nan, wy)
-
 
                 axs[i, 0].plot(
                     be.to_numpy(self.pupil_coord),
@@ -411,7 +415,9 @@ class OPDFan(Wavefront):
                 axs[i, 0].set_xlabel("$P_y$ (Pupil Y-coordinate)")
                 axs[i, 0].set_ylabel("Wavefront Error (waves)")
                 axs[i, 0].set_xlim((-1, 1))
-                axs[i, 0].set_title(f"Hx: {field_coord[0]:.3f}, Hy: {field_coord[1]:.3f} (Tangential)")
+                axs[i, 0].set_title(
+                    f"Hx: {field_coord[0]:.3f}, Hy: {field_coord[1]:.3f} (Tangential)"
+                )
 
                 axs[i, 1].plot(
                     be.to_numpy(self.pupil_coord),
@@ -425,19 +431,26 @@ class OPDFan(Wavefront):
                 axs[i, 1].set_xlabel("$P_x$ (Pupil X-coordinate)")
                 # axs[i, 1].set_ylabel("Wavefront Error (waves)") # Shared Y
                 axs[i, 1].set_xlim((-1, 1))
-                axs[i, 1].set_title(f"Hx: {field_coord[0]:.3f}, Hy: {field_coord[1]:.3f} (Sagittal)")
+                axs[i, 1].set_title(
+                    f"Hx: {field_coord[0]:.3f}, Hy: {field_coord[1]:.3f} (Sagittal)"
+                )
 
         # Common legend for the last plotted axes or figure
         if axs.size > 0:
             handles, labels = axs[-1, -1].get_legend_handles_labels()
             # Place legend below all subplots
-            fig = axs[0,0].get_figure()
-            fig.legend(handles, labels, loc='lower center',
-                       bbox_to_anchor=(0.5, -0.05 - (0.1/num_rows)), ncol=3) # Adjust bbox
+            fig = axs[0, 0].get_figure()
+            fig.legend(
+                handles,
+                labels,
+                loc="lower center",
+                bbox_to_anchor=(0.5, -0.05 - (0.1 / num_rows)),
+                ncol=3,
+            )  # Adjust bbox
 
         plt.tight_layout()
         # Adjust layout to make space for the figure legend
-        plt.subplots_adjust(bottom=0.15 + (0.1/num_rows if num_rows > 1 else 0.2))
+        plt.subplots_adjust(bottom=0.15 + (0.1 / num_rows if num_rows > 1 else 0.2))
         plt.show()
 
 
@@ -462,15 +475,14 @@ class OPD(Wavefront):
         """Initialize OPD calculation for a specific field and wavelength."""
         super().__init__(
             optic,
-            fields=[field], # OPD is for a single field
-            wavelengths=[wavelength], # and single wavelength
-            num_rays=num_rings, # num_rays for hexapolar is num_rings
+            fields=[field],  # OPD is for a single field
+            wavelengths=[wavelength],  # and single wavelength
+            num_rays=num_rings,  # num_rays for hexapolar is num_rings
             distribution="hexapolar",
         )
         # Store the specific field and wavelength for convenience
         self.field = field
         self.wavelength = wavelength
-
 
     def view(self, projection="2d", num_points=256, figsize=(7, 5.5)):
         """Visualize the OPD wavefront map.
@@ -506,7 +518,7 @@ class OPD(Wavefront):
         # Ensure only valid (non-NaN if any) OPD points are used for RMS
         valid_opd = data.opd[~be.isnan(data.opd)]
         if valid_opd.size == 0:
-            return 0.0 # Or handle as NaN/error if no valid points
+            return 0.0  # Or handle as NaN/error if no valid points
         return be.sqrt(be.mean(valid_opd**2))
 
     def _plot_2d(self, data, figsize=(7, 5.5)):
@@ -514,13 +526,18 @@ class OPD(Wavefront):
         _, ax = plt.subplots(figsize=figsize)
         # data['z'] is already a numpy array from generate_opd_map
         im = ax.imshow(
-            np.flipud(data["z"]), extent=[-1, 1, -1, 1],
-            cmap='viridis', interpolation='bilinear'
+            np.flipud(data["z"]),
+            extent=[-1, 1, -1, 1],
+            cmap="viridis",
+            interpolation="bilinear",
         )
 
         ax.set_xlabel("Pupil X (normalized)")
         ax.set_ylabel("Pupil Y (normalized)")
-        ax.set_title(f"OPD Map: Hx={self.field[0]}, Hy={self.field[1]}; RMS={self.rms():.3f} waves")
+        ax.set_title(
+            f"OPD Map: Hx={self.field[0]}, Hy={self.field[1]}; "
+            f"RMS={self.rms():.3f} waves"
+        )
 
         cbar = plt.colorbar(im, ax=ax)
         cbar.ax.get_yaxis().labelpad = 15
@@ -533,15 +550,23 @@ class OPD(Wavefront):
 
         # data['x'], data['y'], data['z'] are numpy arrays
         surf = ax.plot_surface(
-            data["x"], data["y"], data["z"],
-            rstride=1, cstride=1, cmap="viridis",
-            linewidth=0, antialiased=False
+            data["x"],
+            data["y"],
+            data["z"],
+            rstride=1,
+            cstride=1,
+            cmap="viridis",
+            linewidth=0,
+            antialiased=False,
         )
 
         ax.set_xlabel("Pupil X (normalized)")
         ax.set_ylabel("Pupil Y (normalized)")
         ax.set_zlabel("OPD (waves)")
-        ax.set_title(f"OPD Map: Hx={self.field[0]}, Hy={self.field[1]}; RMS={self.rms():.3f} waves")
+        ax.set_title(
+            f"OPD Map: Hx={self.field[0]}, Hy={self.field[1]}; "
+            f"RMS={self.rms():.3f} waves"
+        )
 
         fig.colorbar(surf, ax=ax, shrink=0.5, aspect=10, pad=0.15)
         fig.tight_layout()
@@ -582,7 +607,9 @@ class OPD(Wavefront):
             )
             return dict(x=x_interp, y=y_interp, z=np.full_like(x_interp, np.nan))
 
-        points_for_griddata = np.column_stack((x_pupil[valid_mask], y_pupil[valid_mask]))
+        points_for_griddata = np.column_stack(
+            (x_pupil[valid_mask], y_pupil[valid_mask])
+        )
         values_for_griddata = opd_values[valid_mask]
 
         # Create grid for interpolation
@@ -594,8 +621,11 @@ class OPD(Wavefront):
         # Interpolate OPD data onto the grid
         # Fill un-found points with NaN to represent areas outside pupil or vignetted
         opd_interp = griddata(
-            points_for_griddata, values_for_griddata, (grid_x, grid_y),
-            method="cubic", fill_value=np.nan
+            points_for_griddata,
+            values_for_griddata,
+            (grid_x, grid_y),
+            method="cubic",
+            fill_value=np.nan,
         )
 
         # Mask out areas outside the unit circle (pupil boundary)
@@ -647,8 +677,7 @@ class ZernikeOPD(ZernikeFit, OPD):
         # Data is stored for self.fields[0] (which is `field`)
         # and self.wavelengths[0] (which is `wavelength`)
         wavefront_data_obj = self.get_data(field, wavelength)
-        opd_values = wavefront_data_obj.opd # These are in waves
+        opd_values = wavefront_data_obj.opd  # These are in waves
 
         # Now, initialize ZernikeFit with these pupil coords and OPD values
-        ZernikeFit.__init__(self, x_pupil, y_pupil, opd_values,
-                            zernike_type, num_terms)
+        ZernikeFit.__init__(self, x_pupil, y_pupil, opd_values, zernike_type, num_terms)

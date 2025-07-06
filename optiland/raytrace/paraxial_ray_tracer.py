@@ -64,7 +64,7 @@ class ParaxialRayTracer:
                 raise ValueError(
                     "Object is at EPL; paraxial ray angle u0 is ill-defined."
                 )
-        else: # Standard case: EPL != z0
+        else:  # Standard case: EPL != z0
             u0 = (y1 - y0) / delta_z
 
         rays = ParaxialRays(y0, u0, z0, wavelength)
@@ -110,15 +110,17 @@ class ParaxialRayTracer:
         heights = []
         slopes = []
 
-        for k_idx, surf_k in enumerate(surfs): # Use enumerate for clarity if needed
-            if k_idx < skip: # Skip surfaces if requested
+        for k_idx, surf_k in enumerate(surfs):  # Use enumerate for clarity if needed
+            if k_idx < skip:  # Skip surfaces if requested
                 # For skipped surfaces, we might still need to record initial y, u
                 # if the output format expects values for all surfaces.
-                # However, typical paraxial traces only care about values *after* interaction.
+                # However, typical paraxial traces only care about values *after*
+                # interaction.
                 # The original code's loop `range(skip, len(R))` implies we just don't
-                # process these. If output must align with all surfaces, this needs adjustment.
+                # process these. If output must align with all surfaces, this needs
+                # adjustment.
                 # For now, assume skip means these surfaces are entirely ignored.
-                continue # This was `for k in range(skip, len(R))`
+                continue  # This was `for k in range(skip, len(R))`
 
             if isinstance(surf_k, ObjectSurface):
                 heights.append(be.copy(y))
@@ -126,15 +128,16 @@ class ParaxialRayTracer:
                 continue
 
             # Propagate to surface k
-            # Ensure pos indexing matches R, power, and n_indices after potential reverse
+            # Ensure pos indexing matches R, power, and n_indices after potential
+            # reverse
             # If R has N elements (0 to N-1), pos should also correspond.
             # k_idx here is 0-based index into potentially reversed 'surfs' array.
             # We need thickness t = pos[k_idx] - z_prev_surface_global
             # z is current_z_global_coord_of_ray_start_for_this_segment
 
-            t = pos[k_idx] - z # Thickness to propagate
-            z = pos[k_idx]     # Update z to current surface's global position
-            y = y + t * u      # Ray height at surface k
+            t = pos[k_idx] - z  # Thickness to propagate
+            z = pos[k_idx]  # Update z to current surface's global position
+            y = y + t * u  # Ray height at surface k
 
             # Refract or Reflect at surface k
             if surf_k.is_reflective:
@@ -142,33 +145,42 @@ class ParaxialRayTracer:
                 # n_indices[k_idx] is n', n_indices[k_idx-1] is n (for refraction)
                 # For reflection, n' = -n. The paraxial formulas usually handle this
                 # by specific reflection equations.
-                # Paraxial reflection: u' = u - 2*y/R (if R is positive for convex from left)
+                # Paraxial reflection: u' = u - 2*y/R (if R is positive for convex from
+                # left)
                 # Or u_reflected = -u_incident - 2*y/R_mirror (sign conventions vary)
                 # Optiland's convention: R > 0 for center to right.
-                # If light from left, hits convex (R>0), reflected u should be smaller if y>0.
+                # If light from left, hits convex (R>0), reflected u should be smaller
+                # if y>0.
                 # u_inc = u; u_refl = u_inc - 2*y*n_inc/R (No, this is for OPL change)
-                # Standard paraxial reflection: u_after = u_before - 2*y/R (if n=1 before mirror)
+                # Standard paraxial reflection: u_after = u_before - 2*y/R (if n=1
+                # before mirror)
                 # Or, more generally, if using n' = -n:
                 # n*u = n_prev*u_prev - y * (n-n_prev)/R_surf
                 # For mirror, n_after = -n_before.
-                # -n_before*u_after = n_before*u_before - y*(-n_before - n_before)/R_surf
-                # -u_after = u_before - y*(-2)/R_surf  => u_after = -u_before - 2*y/R_surf
+                # -n_before*u_after = n_before*u_before - y*(-n_before -
+                # n_before)/R_surf
+                # -u_after = u_before - y*(-2)/R_surf  => u_after = -u_before -
+                # 2*y/R_surf
                 u = -u - 2 * y / R[k_idx]
             else:
-                # Paraxial refraction: n_k * u_k = n_{k-1} * u_{k-1} - y_k * (n_k - n_{k-1}) / R_k
+                # Paraxial refraction: n_k * u_k = n_{k-1} * u_{k-1} - y_k *
+                # (n_k - n_{k-1}) / R_k
                 # u_k = (1/n_k) * (n_{k-1}*u_{k-1} - y_k * power_k)
-                # Here, u is u_{k-1} (slope before surface k). power[k_idx] is (n_k - n_{k-1})/R_k.
-                # n_indices[k_idx] is n_k, n_indices[k_idx-1] is n_{k-1} (after reversing if any)
+                # Here, u is u_{k-1} (slope before surface k). power[k_idx] is
+                # (n_k - n_{k-1})/R_k.
+                # n_indices[k_idx] is n_k, n_indices[k_idx-1] is n_{k-1}
+                # (after reversing if any)
                 u = (1 / n_indices[k_idx]) * (
-                    n_indices[k_idx -1] * u - y * power[k_idx]
+                    n_indices[k_idx - 1] * u - y * power[k_idx]
                 )
 
             heights.append(be.copy(y))
             slopes.append(be.copy(u))
 
-            if k_idx >= len(R) -1 + skip - (len(surfs) - len(R)): # Adjust loop if R, surfs differ post skip
-                 break
-
+            if k_idx >= len(R) - 1 + skip - (
+                len(surfs) - len(R)
+            ):  # Adjust loop if R, surfs differ post skip
+                break
 
         heights_arr = be.array(heights)
         slopes_arr = be.array(slopes)
@@ -197,4 +209,4 @@ class ParaxialRayTracer:
         if isinstance(x, (int, float)):
             return be.array([x])
         else:
-            return be.asarray(x) # Use asarray for existing backend arrays
+            return be.asarray(x)  # Use asarray for existing backend arrays

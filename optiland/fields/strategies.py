@@ -54,7 +54,7 @@ class ObjectHeightField(BaseFieldStrategy):
         field_y = max_field * Hy
 
         if obj.is_infinite:
-            # This check is also in validate_optic_state but provides a runtime safeguard.
+            # This check is also in validate_optic_state but provides a safeguard.
             raise ValueError(
                 'Field type "object_height" cannot be used for an object at infinity.'
             )
@@ -63,7 +63,7 @@ class ObjectHeightField(BaseFieldStrategy):
             y0 = be.array(field_y)
             # Calculate sag at the object surface for the given field point
             z0_sag = obj.geometry.sag(x0, y0)
-            z0 = z0_sag + obj.geometry.cs.z # Add global z-position of object surface
+            z0 = z0_sag + obj.geometry.cs.z  # Add global z-position of object surface
 
             # Ensure outputs are broadcastable with pupil coordinates
             if be.size(x0) == 1:
@@ -103,8 +103,8 @@ class ObjectHeightField(BaseFieldStrategy):
                 'Field type "object_height" cannot be used for an object at infinity.'
             )
         else:
-            y0_scalar = -field_y # Object height (y-coordinate)
-            z0_scalar = obj.geometry.cs.z # Object's axial position
+            y0_scalar = -field_y  # Object height (y-coordinate)
+            z0_scalar = obj.geometry.cs.z  # Object's axial position
 
             y0 = be.ones_like(y1) * y0_scalar
             z0 = be.ones_like(y1) * z0_scalar
@@ -132,7 +132,7 @@ class ObjectHeightField(BaseFieldStrategy):
             float: The adjusted starting slope `u1` for the chief ray trace.
 
         """
-        max_field = optic.fields.max_y_field # Maximum y-field height
+        max_field = optic.fields.max_y_field  # Maximum y-field height
         # The 0.1 is a scaling factor used in the original paraxial.py logic
         u1 = 0.1 * max_field / chief_ray_y_at_stop
         return u1
@@ -209,7 +209,7 @@ class AngleField(BaseFieldStrategy):
 
         """
         obj = optic.object_surface
-        max_field = optic.fields.max_field # Max field angle in degrees
+        max_field = optic.fields.max_field  # Max field angle in degrees
         field_x_angle_deg = max_field * Hx
         field_y_angle_deg = max_field * Hy
 
@@ -237,29 +237,31 @@ class AngleField(BaseFieldStrategy):
 
             # Object coordinates (x,y) on this plane to achieve the field angle
             # when viewed from the entrance pupil.
-            x_obj_at_plane = -be.tan(be.radians(field_x_angle_deg)) * \
-                             (starting_z_offset + EPL)
-            y_obj_at_plane = -be.tan(be.radians(field_y_angle_deg)) * \
-                             (starting_z_offset + EPL)
+            x_obj_at_plane = -be.tan(be.radians(field_x_angle_deg)) * (
+                starting_z_offset + EPL
+            )
+            y_obj_at_plane = -be.tan(be.radians(field_y_angle_deg)) * (
+                starting_z_offset + EPL
+            )
 
             # Ray origins are then pupil points projected onto this plane,
             # offset by the object's position on that plane.
             x0 = Px * EPD / 2 * vx + x_obj_at_plane
             y0 = Py * EPD / 2 * vy + y_obj_at_plane
             z0 = be.full_like(Px, z_start_plane)
-        else: # Finite object
+        else:  # Finite object
             EPL = optic.paraxial.EPL()
             # For finite objects, the "angle" definition typically means the angle
             # subtended by the field point from the center of the entrance pupil,
             # originating from the object's actual z-position.
-            z_obj_global = obj.geometry.cs.z # Global z-pos of object surface
+            z_obj_global = obj.geometry.cs.z  # Global z-pos of object surface
 
             # Calculate object heights (x0, y0) that would produce the given
             # field angles when viewed from the entrance pupil.
             # (EPL - z_obj_global) is the axial distance from object to EPL.
             x0_scalar = -be.tan(be.radians(field_x_angle_deg)) * (EPL - z_obj_global)
             y0_scalar = -be.tan(be.radians(field_y_angle_deg)) * (EPL - z_obj_global)
-            z0_scalar = z_obj_global # Rays start on the object surface.
+            z0_scalar = z_obj_global  # Rays start on the object surface.
 
             x0 = be.full_like(Px, x0_scalar)
             y0 = be.full_like(Px, y0_scalar)
@@ -304,7 +306,8 @@ class AngleField(BaseFieldStrategy):
 
             # The original logic was: y = -u0_inf * EPL; y0 = y1 + y; z0 = z_first_surf.
             # This implies y0 = y1 - u0_inf * EPL.
-            # This is consistent if the reference for EPL is the first surface (z_first_surf=0).
+            # This is consistent if the reference for EPL is the first surface
+            # (z_first_surf=0).
             # Let's assume EPL is relative to global origin, and z_first_surf is global.
             # So, dist_obj_epl = EPL - z_first_surf
             y0 = y1 - u0_inf * (EPL - z_first_surf)
@@ -342,7 +345,7 @@ class AngleField(BaseFieldStrategy):
             float: The adjusted starting slope `u1` for the chief ray trace.
 
         """
-        max_field_angle_deg = optic.fields.max_y_field # Max y-field angle
+        max_field_angle_deg = optic.fields.max_y_field  # Max y-field angle
         # The 0.1 is a scaling factor from original paraxial.py logic
         u1 = 0.1 * be.tan(be.deg2rad(max_field_angle_deg)) / chief_ray_u_at_stop
         return u1
