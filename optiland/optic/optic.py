@@ -17,7 +17,8 @@ from typing import Union
 from optiland.aberrations import Aberrations
 from optiland.aperture import Aperture
 from optiland.apodization import BaseApodization
-from optiland.fields.group import Field, FieldGroup
+from optiland.fields.field import Field
+from optiland.fields.field_group import FieldGroup
 from optiland.materials.base import BaseMaterial
 from optiland.optic.optic_updater import OpticUpdater
 from optiland.paraxial import Paraxial

@@ -1,3 +1,10 @@
+"""Base Field Strategy Class
+
+This module defines the abstract base class for field strategies in optical systems.
+
+Kramer Harrison, 2025
+"""
+
 from abc import ABC, abstractmethod
 
 
