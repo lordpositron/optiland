@@ -3,7 +3,7 @@ import optiland.backend as be
 
 from optiland.apodization import UniformApodization, GaussianApodization
 from optiland.aperture import Aperture
-from optiland.fields import FieldGroup
+from optiland.fields.group import FieldGroup
 from optiland.optic import Optic
 from optiland.rays import create_polarization
 from optiland.samples.objectives import HeliarLens
