@@ -644,22 +644,14 @@ class Optic:
 
         optic.polarization = data["wavelengths"]["polarization"]
 
-        # New way: use set_field_type to instantiate strategy.
-        # This should ideally be done before loading things that depend on the
-        # field_type strategy (e.g. FieldGroup if it used the strategy directly).
-        # Currently, FieldGroup.from_dict uses the string from the dict,
-        # so precise order here is less critical for that specific interaction.
-        field_type_str_from_dict = data["fields"]["field_type"]
+        field_type_str_from_dict = data["fields"].get("field_type", None)
         if field_type_str_from_dict:  # Ensure it's not empty or None
             optic.set_field_type(field_type_str_from_dict)
         else:
-            # If field_type string is missing/empty but fields are loaded,
-            # it's an inconsistent state.
-            if optic.fields.fields:  # Check if FieldGroup loaded any fields
+            if optic.fields.fields:
                 raise ValueError(
                     "Field type string missing in dictionary but fields are present."
                 )
-            # optic.field_type remains None if not specified and no fields.
 
         optic.obj_space_telecentric = data["fields"]["object_space_telecentric"]
 

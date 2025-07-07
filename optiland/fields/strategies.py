@@ -9,13 +9,8 @@ chosen field definition.
 Kramer Harrison, 2025
 """
 
-from typing import TYPE_CHECKING
-
 import optiland.backend as be
 from optiland.fields.base import BaseFieldStrategy
-
-if TYPE_CHECKING:
-    pass
 
 
 class ObjectHeightField(BaseFieldStrategy):
@@ -138,7 +133,7 @@ class ObjectHeightField(BaseFieldStrategy):
 
         """
         max_field = optic.fields.max_y_field  # Maximum y-field height
-        # The 0.1 is a scaling factor used in the original paraxial.py logic
+        # The 0.1 is a scaling factor and is arbitrary
         u1 = 0.1 * max_field / chief_ray_y_at_stop
         return u1
 
@@ -161,8 +156,6 @@ class ObjectHeightField(BaseFieldStrategy):
                 'Field type "object_height" is invalid for an object at infinity.'
             )
         if optic.obj_space_telecentric:
-            # These checks were identified in ray_generator.py related to
-            # telecentric object space when field type was "object_height".
             if optic.aperture.ap_type == "EPD":
                 raise ValueError(
                     'Aperture type "EPD" is invalid for telecentric object space '
@@ -227,10 +220,6 @@ class AngleField(BaseFieldStrategy):
             EPL = optic.paraxial.EPL()
             EPD = optic.paraxial.EPD()
 
-            # The _get_starting_z_offset logic (originally in RayGenerator)
-            # is replicated here. It calculates z-offset for infinite objects.
-            # Consider moving to a shared utility if used elsewhere.
-            # Replicating logic:
             z_surf_internal = optic.surface_group.positions[1:-1]
             offset_val = optic.paraxial.EPD()
             starting_z_offset = offset_val - (
@@ -256,14 +245,10 @@ class AngleField(BaseFieldStrategy):
             z0 = be.full_like(Px, z_start_plane)
         else:  # Finite object
             EPL = optic.paraxial.EPL()
-            # For finite objects, the "angle" definition typically means the angle
-            # subtended by the field point from the center of the entrance pupil,
-            # originating from the object's actual z-position.
             z_obj_global = obj.geometry.cs.z  # Global z-pos of object surface
 
             # Calculate object heights (x0, y0) that would produce the given
             # field angles when viewed from the entrance pupil.
-            # (EPL - z_obj_global) is the axial distance from object to EPL.
             x0_scalar = -be.tan(be.radians(field_x_angle_deg)) * (EPL - z_obj_global)
             y0_scalar = -be.tan(be.radians(field_y_angle_deg)) * (EPL - z_obj_global)
             z0_scalar = z_obj_global  # Rays start on the object surface.
@@ -297,31 +282,13 @@ class AngleField(BaseFieldStrategy):
         obj = optic.object_surface
         field_y_angle_deg = optic.fields.max_field * Hy
 
-        if obj.is_infinite:
-            # For an object at infinity, the paraxial ray is considered to start
-            # with a slope related to field_y_angle_deg.
-            # The height y0 at the first surface (z_first_surf) is such that
-            # this ray passes through (y1, EPL).
-            # slope u0 = tan(radians(field_y_angle_deg)).
-            # y0 = y1 - u0 * (EPL - z_first_surf).
-            # This interpretation matches the original logic's effect where
-            # 'y' was effectively u0 * EPL for z_first_surf=0.
+        if obj.is_infinite:  # Infinite object
             z_first_surf = optic.surface_group.positions[1]
             u0_inf = be.tan(be.radians(field_y_angle_deg))
-
-            # The original logic was: y = -u0_inf * EPL; y0 = y1 + y; z0 = z_first_surf.
-            # This implies y0 = y1 - u0_inf * EPL.
-            # This is consistent if the reference for EPL is the first surface
-            # (z_first_surf=0).
-            # Let's assume EPL is relative to global origin, and z_first_surf is global.
-            # So, dist_obj_epl = EPL - z_first_surf
             y0 = y1 - u0_inf * (EPL - z_first_surf)
             z0 = be.ones_like(y1) * z_first_surf
+
         else:  # Finite object
-            # For a finite object, the ray starts at (y0, z_obj) with slope u0,
-            # and passes through (y1, EPL).
-            # u0 = tan(radians(field_y_angle_deg)).
-            # y0 = y1 - u0 * (EPL - z_obj).
             z_obj = obj.geometry.cs.z
             u0_finite = be.tan(be.radians(field_y_angle_deg))
             y0 = y1 - u0_finite * (EPL - z_obj)
@@ -351,7 +318,7 @@ class AngleField(BaseFieldStrategy):
 
         """
         max_field_angle_deg = optic.fields.max_y_field  # Max y-field angle
-        # The 0.1 is a scaling factor from original paraxial.py logic
+        # The 0.1 is a scaling factor and is arbitrary
         u1 = 0.1 * be.tan(be.deg2rad(max_field_angle_deg)) / chief_ray_u_at_stop
         return u1
 
@@ -369,11 +336,9 @@ class AngleField(BaseFieldStrategy):
 
         """
         if optic.obj_space_telecentric:
-            # This validation was present in ray_generator.py.
             raise ValueError(
                 'Field type "angle" is invalid for telecentric object space.'
             )
-        # Note: obj.is_infinite is allowed for AngleField.
         pass
 
 
@@ -440,7 +405,6 @@ class ImageSpaceField(BaseFieldStrategy):
                 currently assumed to be defined only in the y-dimension.
         """
         if not be.isclose(Hx, 0.0):
-            # TODO: Extend solver and this logic if 2D image space fields are needed.
             raise NotImplementedError(
                 "ImageSpaceField currently only supports Hy (1D image height)."
             )
@@ -627,31 +591,3 @@ class ImageSpaceField(BaseFieldStrategy):
             f"{self.__class__.__name__}("
             f"solver={self.solver!r}, base_strategy={self.base_strategy!r})"
         )
-
-    # Notes on implementation choices and adherence to requirements:
-    # - All abstract methods from BaseFieldStrategy are implemented.
-    # - Constructor accepts solver and base_strategy.
-    # - Delegation pattern:
-    #   - `get_ray_origins`, `get_paraxial_object_position`:
-    #     Calculate target image height.
-    #     Use solver to find `equivalent_object_field`.
-    #     Temporarily set `optic.fields.max_field = equivalent_object_field`.
-    #     Call base strategy with normalized `Hy=1.0` (and `Hx=0.0`).
-    #   - `get_chief_ray_start_params`:
-    #     Determine `max_defined_image_height` (from `optic.fields.max_y_field`).
-    #     Solve for `equivalent_object_field_for_max_image`.
-    #     Temp set `optic.fields.max_y_field = abs(equiv_obj_field_for_max_img)`.
-    #     Call base strategy.
-    # - Docstrings: Added for class and methods.
-    # - Hx handling: `get_ray_origins` raises NotImplementedError for non-zero Hx,
-    #   as current implementation and solvers are 1D (y-dimension image height).
-    # - `optic.fields.max_field` vs `optic.fields.max_y_field`:
-    #   `Fields` dataclass has `max_field`, `max_y_field` (defaults to `max_field`).
-    #   Base strategies use `optic.fields.max_field` in `get_ray_origins` and
-    #   `get_paraxial_object_position`.
-    #   Base strategies use `optic.fields.max_y_field` in `get_chief_ray_start_params`.
-    #   This distinction is respected in the temporary modifications.
-    # - Type hints: `TYPE_CHECKING` block is used for `BaseFieldSolver` and `Optic`
-    #   imports to avoid circular dependencies at runtime while providing type info.
-    #   `BaseFieldStrategy` is imported directly.
-    # - Ruff compliance: Comments and code formatted to pass linting.
