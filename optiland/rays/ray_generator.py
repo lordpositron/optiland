@@ -1,4 +1,4 @@
-"""Ray Generator Module.
+"""Ray Generator Module
 
 This module contains the RayGenerator class, which is used to generate rays
 for tracing through an optical system.
@@ -45,12 +45,6 @@ class RayGenerator:
         )
 
         if self.optic.obj_space_telecentric:
-            # Validations for obj_space_telecentric combined with specific
-            # field types or aperture types are now handled by the
-            # field_type strategy's `validate_optic_state` method.
-            # This method is called when `optic.set_field_type()` is invoked.
-            # Thus, incompatible configurations should be caught at setup time.
-
             sin = self.optic.aperture.value
             z = be.sqrt(1 - sin**2) / sin + z0
             z1 = be.full_like(Px, z)

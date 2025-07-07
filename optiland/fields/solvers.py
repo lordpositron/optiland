@@ -1,12 +1,15 @@
+"""Field Solvers Module
+
+This module contains classes for solving object-space field values
+(e.g., height or angle) corresponding to a desired image-space height.
+
+Kramer Harrison, 2025
+"""
+
 from abc import ABC, abstractmethod
 
 import numpy as np
 from scipy.optimize import brentq
-
-# Assuming Optic and Ray will be available for import structure.
-# Forward references might be an issue if there are circular dependencies.
-# from optiland.optic import Optic # For type hinting, if needed broadly
-# from optiland.ray import Ray # For type hinting, if needed broadly
 
 
 class BaseFieldSolver(ABC):
@@ -49,12 +52,6 @@ class ParaxialFieldSolver(BaseFieldSolver):
         Returns:
             The corresponding object-space field value.
         """
-        # Use the maximum field defined in the optic as a reference.
-        # This assumes `optic.fields` is a list and the last one is max,
-        # or `optic.max_field` gives a representative field value.
-        # For now, let's assume `optic.fields[-1]` is how to get a reference
-        # field point. This might need adjustment based on how Optic class
-        # stores its field points or max field.
         if not optic.fields:
             raise ValueError("Optic has no fields defined.")
 

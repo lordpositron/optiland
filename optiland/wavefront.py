@@ -1,4 +1,4 @@
-"""Wavefront Module.
+"""Wavefront Module
 
 This module defines the `Wavefront` class, which is designed to analyze the
 wavefront of an optical system. It supports the evaluation of wavefront
@@ -221,7 +221,7 @@ class Wavefront:
     def _get_path_length(self, xc, yc, zc, R, wavelength):
         """Calculate optical path difference from image to reference sphere."""
         opd_chief = self.optic.surface_group.opd[-1, :]  # OPD to image plane
-        # opd_img is path length from image plane to reference sphere
+        # opd_img_to_xp is path length from image plane to reference sphere
         opd_img_to_xp, t_values = self._opd_image_to_xp(xc, yc, zc, R, wavelength)
         # Total OPD to ref sphere = OPD to image - path from image to ref sphere
         return opd_chief - opd_img_to_xp, t_values
@@ -237,20 +237,10 @@ class Wavefront:
             x_tilt_angle = max_f * Hx
             y_tilt_angle = max_f * Hy
 
-            # Use distribution points if x, y not provided (for general rays)
-            # Use provided x, y if correcting a specific point (like chief ray at x=y=0)
             xs = self.distribution.x if x is None else x
             ys = self.distribution.y if y is None else y
 
             EPD = self.optic.paraxial.EPD()
-            # OPD correction = (pupil_coord) * sin(field_angle) * (EPD/2)
-            # (1-xs) or similar might be specific to pupil coordinate definition
-            # For normalized pupil coords -1 to 1, it's typically xs * sin * EPD/2
-            # Assuming self.distribution.x/y are normalized pupil coords.
-            # The (1-xs) term seems unusual, might be from a specific setup.
-            # Standard tilt term is proportional to pupil coordinate * field angle.
-            # Let's use a more standard interpretation if (1-xs) is problematic.
-            # For now, keeping original structure:
             correction = (1 - xs) * be.sin(be.radians(x_tilt_angle)) * EPD / 2 + (
                 1 - ys
             ) * be.sin(be.radians(y_tilt_angle)) * EPD / 2
@@ -284,12 +274,6 @@ class Wavefront:
         M = -self.optic.surface_group.M[-1, :]
         N = -self.optic.surface_group.N[-1, :]
 
-        # Solve for t: (xr+L*t - xc)^2 + (yr+M*t - yc)^2 + (zr+N*t - zc)^2 = R^2
-        # This expands to a quadratic equation a*t^2 + b*t + c = 0
-        # a = L^2 + M^2 + N^2 (should be 1 if L,M,N are normalized, but be safe)
-        # b = 2 * [L(xr-xc) + M(yr-yc) + N(zr-zc)]
-        # c = (xr-xc)^2 + (yr-yc)^2 + (zr-zc)^2 - R^2
-
         a_coeff = L**2 + M**2 + N**2
         b_coeff = 2 * (L * (xr - xc) + M * (yr - yc) + N * (zr - zc))
         c_coeff = (xr - xc) ** 2 + (yr - yc) ** 2 + (zr - zc) ** 2 - R**2
@@ -298,39 +282,11 @@ class Wavefront:
         # Ensure discriminant is non-negative for real solutions
         discriminant = be.maximum(discriminant, 0)
 
-        # Choose the correct root for t (distance along the ray)
-        # Typically, we want the intersection closer to the image plane or in the
-        # direction of the ray propagation.
-        # If ray comes from image plane (xr,yr,zr) along (L,M,N) to sphere.
-        # The two solutions for t are (-b +/- sqrt(d)) / (2a).
-        # We usually want the smallest positive t, or context-dependent choice.
         t1 = (-b_coeff - be.sqrt(discriminant)) / (2 * a_coeff)
         t2 = (-b_coeff + be.sqrt(discriminant)) / (2 * a_coeff)
 
-        # Heuristic: choose the t that makes sense (e.g. smaller magnitude, or positive)
-        # Often, one solution is physically relevant. If image is outside sphere,
-        # one t will be towards sphere, other away.
-        # The original code used a mask t < 0, implying t should be positive.
         t_final = be.where(t1 < 0, t2, t1)  # Prefer t1 if positive, else t2
-        # This might need refinement based on geometry (e.g. if image inside sphere)
-        # A common choice is the one that leads to the exit pupil.
-        # The original code's mask: t = be.where(mask, (-b + be.sqrt(d)) / (2 * a), t)
-        # where t was t1. This means if t1 < 0, it chose t2.
-        # This is equivalent to choosing the positive root if one is positive and
-        # the other negative, or the smaller positive root if both are positive.
-        # Let's ensure we are picking the correct intersection.
-        # Assuming rays propagate from image towards XP, we expect positive t.
-        # If both t1,t2 are positive, smaller one is usually XP side.
-        # If one positive, one negative, take positive.
-        # If both negative, ray is moving away from sphere center from image.
-
-        # Re-evaluating choice of t:
-        # If a_coeff is near zero (e.g., grazing incidence, problematic), handle
-        # separately.
-        # We are looking for intersection of line P = P_img + t*V_ray with sphere.
-        # V_ray is (L,M,N). P_img is (xr,yr,zr).
-        # The original code's choice seems to be:
-        t_val = (-b_coeff - be.sqrt(discriminant)) / (2 * a_coeff)  # This is t1
+        t_val = (-b_coeff - be.sqrt(discriminant)) / (2 * a_coeff)
         mask_t_neg = t_val < 0
         t_final = be.where(
             mask_t_neg, (-b_coeff + be.sqrt(discriminant)) / (2 * a_coeff), t_val

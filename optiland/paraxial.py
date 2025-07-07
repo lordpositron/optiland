@@ -1,4 +1,4 @@
-"""Paraxial Module.
+"""Paraxial Module
 
 This module provides various functionalities for the computation of paraxial
 properties of lens systems.
@@ -268,7 +268,7 @@ class Paraxial:
                 u0_val = 0.1 * ap_value / y[stop_index]
                 return u0_val * (epl_val - obj_z_val)
         # Should not be reached if aperture types are exhaustive
-        return None  # Or raise error
+        return None
 
     def XPL(self):
         """Calculate the exit pupil location (XPL).
@@ -392,11 +392,6 @@ class Paraxial:
         if not self.optic.field_type:
             raise RuntimeError("Optic.field_type strategy is not set.")
 
-        # The strategy's get_chief_ray_start_params method uses:
-        # - chief_ray_y_at_stop: y_rev[-1], height at the effective object plane
-        #   from the reverse trace starting at the stop.
-        # - chief_ray_u_at_stop: u_rev[-1], angle at the effective object plane
-        #   from the reverse trace.
         u1_chief_start = self.optic.field_type.get_chief_ray_start_params(
             self.optic, y_rev[-1], u_rev[-1]
         )
@@ -407,8 +402,6 @@ class Paraxial:
         )
 
         # Now trace this chief ray forward from the object plane
-        # Initial height is -yn_rev[-1,0], initial angle is un_rev[-1,0]
-        # Start trace from the first optical surface's z-position
         z0_fwd_trace = self.optic.surface_group.positions[1]
 
         return self._trace_generic(

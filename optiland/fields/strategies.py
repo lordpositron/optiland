@@ -1,4 +1,4 @@
-"""Field Strategies Module.
+"""Field Strategies Module
 
 This module defines concrete field strategy classes for Optiland, implementing
 the Strategy Pattern for handling different field type behaviors (e.g., object

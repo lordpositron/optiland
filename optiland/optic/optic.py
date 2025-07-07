@@ -1,4 +1,4 @@
-"""Optic Module.
+"""Optic Module
 
 This is the core module of Optiland, which provides the class to define
 generic optical systems. The Optic class encapsulates the core properties
@@ -321,10 +321,6 @@ class Optic:
         strategy_instance.validate_optic_state(self)
 
         self.field_type = strategy_instance
-
-        # Field objects store field_type as string. Optic.field_type is the strategy.
-        # No direct update on Field instances is needed here if their string value
-        # is for definition/serialization and behavior is via Optic.field_type.
 
     def set_radius(self, value, surface_number):
         """Set the radius of curvature of a surface.
