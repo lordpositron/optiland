@@ -79,21 +79,3 @@ class RayGenerator:
                 )
             return RealRays(x0, y0, z0, L, M, N, intensity, wavelength_arr)
         return PolarizedRays(x0, y0, z0, L, M, N, intensity, wavelength_arr)
-
-    # _get_ray_origins logic is now in field strategy classes.
-    # The _get_starting_z_offset logic was replicated in AngleField strategy.
-
-    # def _get_starting_z_offset(self): # Logic moved to AngleField strategy
-    #     """Calculate the starting ray z-coordinate offset for systems with an
-    #     object at infinity. This is relative to the first surface of the optic.
-    #
-    #     This method chooses a starting point that is equivalent to the entrance
-    #     pupil diameter of the optic.
-    #
-    #     Returns:
-    #         float: The z-coordinate offset relative to the first surface.
-    #
-    #     """
-    #     z = self.optic.surface_group.positions[1:-1]
-    #     offset = self.optic.paraxial.EPD()
-    #     return offset - be.min(z)
