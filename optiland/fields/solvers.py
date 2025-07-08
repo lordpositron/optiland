@@ -55,96 +55,23 @@ class ParaxialFieldSolver(BaseFieldSolver):
         if not optic.fields:
             raise ValueError("Optic has no fields defined.")
 
-        # Assuming the field value is stored in the second element (index 1)
-        # of the tuple/list representing a field point (e.g., (fx, fy) or (hx, hy)).
-        # We'll use the y-component for this calculation.
-        # A more robust way might be `optic.get_max_field()` or similar if available.
-        # For now, assume the last field point in `optic.fields` is the maximum field.
-        reference_object_field_y = optic.fields[-1][1]  # Assuming (fx, fy) or (hx, hy)
+        reference_object_field_y = optic.fields.max_field
 
         if reference_object_field_y == 0:
-            # If the reference field is zero, we can't scale.
-            # This might happen if only an on-axis field is defined.
-            # If target_image_height is also zero, then 0 is a valid solution.
             if target_image_height == 0:
                 return 0.0
-            # Else, target is non-zero, but reference is zero. This is an issue.
-            # This might indicate an optical system that doesn't produce
-            # off-axis image height for the given reference, or the reference
-            # field itself is problematic.
-            # Consider raising an error, returning NaN, or handling as per system
-            # design. For now, assume this means we can't solve it this way.
+
             raise ValueError(
                 "Reference object field is zero, cannot scale to non-zero target."
             )
 
-        # Trace a paraxial chief ray for this reference object field.
-        # The `chief_ray` function might need the field value directly.
-        # Assuming `optic.paraxial.chief_ray` takes field components (fx, fy)
-        # or (hx, hy) and returns ray data including image height.
-        # We need to know the structure of what `chief_ray` returns.
-        # Assume it returns an object or dict with an `image_height` attribute/key.
-        # Paraxial chief ray func signature likely `optic.paraxial.chief_ray(Hy, Hy_is_angle)`. # noqa: E501
-        # We need to determine if field is an angle or height.
-        # This info should come from the optic's field strategy.
+        yb, _ = optic.paraxial.chief_ray()
 
-        # Assume `optic.field_strategy` exists and can tell if it's an angle field.
-        # This is a simplification; actual info retrieval might differ.
-        # Common pattern: different field types (e.g. AngleField, ObjectHeightField).
-
-        # We need to import Optic and paraxial calculations.
-        # `from optiland.optic import Optic` is now at top for clarity.
-        from optiland import paraxial  # Assuming this is where paraxial functions are
-
-        if not hasattr(optic, "paraxial_model") or optic.paraxial_model is None:
-            # Paraxial model needs to be initialized. Might be in `Optic.__init__`
-            # or a dedicated method. Assume it's available or can be computed.
-            optic.update_paraxial_model()
-
-        # Get paraxial chief ray for `reference_object_field_y`.
-        # `paraxial.chief_ray()` usually takes object height (or angle)
-        # and details about whether the object is at infinity.
-        # This depends on the current field strategy of the optic.
-
-        # Assume `optic.field_strategy.field_type` can be 'angle' or 'height'.
-        # This is a placeholder for how Optic class manages its field definition.
-        # A more robust way: use a method on Optic or its field strategy
-        # to get paraxial image height for a given object field.
-
-        # For now, use `optic.paraxial.chief_ray(Hy, field_is_angle)`.
-        # Need to know if `reference_object_field_y` is an angle or height.
-        # This info is typically part of Optic's setup.
-        # Assume Optic class has `object_is_at_infinity` property.
-
-        # Paraxial chief ray func in `optic.paraxial` likely needs paraxial model.
-        # Assume `optic.paraxial.chief_ray` can access `optic.paraxial_model`
-        # or takes it as an argument.
-        # Args to `chief_ray` typically `(obj_y, pm, obj_is_inf)` or similar.
-
-        # Let's simplify and assume `optic.paraxial_image_height(object_field_y)`
-        # exists or we can compute it using `optic.paraxial.chief_ray`.
-
-        # `chief_ray` in `paraxial.py` is `chief_ray(Hy, pm, obj_is_inf)`.
-        # `pm` is `optic.paraxial_model`. `obj_is_inf` is `optic.object_is_at_infinity`.
-        ref_chief_ray = paraxial.chief_ray(
-            reference_object_field_y, optic.paraxial_model, optic.object_is_at_infinity
-        )
-
-        # Returned `chief_ray` is tuple `(y_stop, u_stop, y_image, u_image)`.
-        reference_image_height = ref_chief_ray[2]  # y_image
+        reference_image_height = yb[-1]  # y height at image surface
 
         if reference_image_height == 0:
-            # Ref field maps to zero image height.
-            # If `target_image_height` is also zero, any field could be solution (0.0).
-            # If `target_image_height` non-zero, cannot find unique scale factor.
             if target_image_height == 0:
-                # Target is 0, ref image height is 0.
-                # If `reference_object_field_y` was non-zero, this is ambiguous.
-                # However, if `reference_object_field_y` itself was 0, then 0 is fine.
-                # Assume if `reference_object_field_y` was non-zero, this is an issue.
-                # Or, return 0 if target is 0.
                 return 0.0
-            # else:
             raise ValueError(
                 "Reference field results in zero image height, "
                 "cannot scale to non-zero target."

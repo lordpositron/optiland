@@ -211,15 +211,7 @@ class Optic:
                 "Call Optic.set_field_type() first."
             )
 
-        field_type_str = ""
-        if isinstance(self.field_type, ObjectHeightField):
-            field_type_str = "object_height"
-        elif isinstance(self.field_type, AngleField):
-            field_type_str = "angle"
-        else:
-            # Should not happen if self.field_type is correctly initialized
-            raise TypeError("Optic.field_type is not a recognized strategy instance.")
-
+        field_type_str = self.field_type.type_ if self.field_type else None
         new_field = Field(field_type_str, x, y, vx, vy)
         self.fields.add_field(new_field)
 

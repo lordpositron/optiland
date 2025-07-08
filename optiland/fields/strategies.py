@@ -11,6 +11,7 @@ Kramer Harrison, 2025
 
 import optiland.backend as be
 from optiland.fields.base import BaseFieldStrategy
+from optiland.fields.solvers import ParaxialFieldSolver, RealFieldSolver
 
 
 class ObjectHeightField(BaseFieldStrategy):
@@ -22,6 +23,11 @@ class ObjectHeightField(BaseFieldStrategy):
     It is typically used for finite object conjugates where the object size is
     given directly.
     """
+
+    def __init__(self):
+        """Initializes an ObjectHeightField strategy."""
+        self.type_ = "object_height"
+        super().__init__()
 
     def get_ray_origins(self, optic, Hx, Hy, Px, Py, vx, vy):
         """Calculate ray origin coordinates for object height fields.
@@ -178,6 +184,11 @@ class AngleField(BaseFieldStrategy):
     It is commonly used for objects at infinity or when field coverage is
     naturally expressed in angular terms.
     """
+
+    def __init__(self):
+        """Initializes an AngleField strategy."""
+        self.type_ = "angle"
+        super().__init__()
 
     def get_ray_origins(self, optic, Hx, Hy, Px, Py, vx, vy):
         """Calculate ray origin coordinates for angle fields.
@@ -373,6 +384,14 @@ class ImageSpaceField(BaseFieldStrategy):
         """
         self.solver = solver
         self.base_strategy = base_strategy
+
+    @property
+    def type_(self):
+        """Return the type of this field strategy."""
+        if isinstance(self.solver, ParaxialFieldSolver):
+            return "paraxial_image_height"
+        elif isinstance(self.solver, RealFieldSolver):
+            return "real_image_height"
 
     def get_ray_origins(self, optic, Hx, Hy, Px, Py, vx, vy):
         """Calculate ray origin coordinates for image height fields.
