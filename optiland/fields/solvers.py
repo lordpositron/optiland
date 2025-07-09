@@ -11,6 +11,8 @@ from abc import ABC, abstractmethod
 import numpy as np
 from scipy.optimize import brentq
 
+from .strategies import ImageSpaceField
+
 
 class BaseFieldSolver(ABC):
     """
@@ -33,18 +35,6 @@ class BaseFieldSolver(ABC):
             The corresponding object-space field value.
         """
         pass
-
-
-class ParaxialFieldSolver(BaseFieldSolver):
-    """
-    Solves for the object-space field using paraxial ray tracing.
-    """
-
-from optiland.fields.strategies import (
-    AngleField,
-    ImageSpaceField,
-    ObjectHeightField,
-)
 
 
 class ParaxialFieldSolver(BaseFieldSolver):
@@ -84,12 +74,11 @@ class ParaxialFieldSolver(BaseFieldSolver):
             )
 
         # Step 2: Simulate Image Height for a Unit Object Field
-        unit_object_field_value = 1.0  # e.g., 1mm or 1 degree/radian
+        unit_object_field_value = 1.0  # e.g., 1mm or 1 degree
         wavelength = optic.primary_wavelength
         stop_index = optic.surface_group.stop_index
 
         # 2a: Initial backward trace from stop (arbitrary slope)
-        # Mimic paraxial.chief_ray() initial reverse trace setup
         y_at_stop_center_for_bwd_arb = 0.0
         u_backward_arbitrary = 0.1  # Standard arbitrary slope
         # z0 for reverse trace is distance from last surface to stop surface
@@ -97,9 +86,7 @@ class ParaxialFieldSolver(BaseFieldSolver):
             optic.surface_group.positions[-1]
             - optic.surface_group.positions[stop_index]
         )
-        num_surfaces_to_skip_rev = (
-            optic.surface_group.num_surfaces - stop_index
-        )
+        num_surfaces_to_skip_rev = optic.surface_group.num_surfaces - stop_index
 
         # Use optic.paraxial._trace_generic for tracing
         y_obj_parts_arb, u_obj_parts_arb = optic.paraxial._trace_generic(
@@ -129,21 +116,23 @@ class ParaxialFieldSolver(BaseFieldSolver):
 
         # 2c: Determine actual y_start and u_start for the forward trace
         # This step mimics the second reverse trace in paraxial.chief_ray
-        # to get the y,u at object plane for the calculated u_start_for_unit_field_obj_space
+        # to get the y,u at object plane for the calculated
+        # u_start_for_unit_field_obj_space
 
         # `u_start_for_unit_field_obj_space` is the slope that should emerge from the
         # object side if the ray were traced backward from the stop, corresponding
         # to the unit field.
         # Now, we need the y,u at the object plane for a *forward* trace.
         # paraxial.chief_ray does:
-        #   yn_rev, un_rev = self._trace_generic(y0_val, u1_chief_start, z0_rev_trace, reverse=True, skip=skip)
+        #   yn_rev, un_rev = self._trace_generic(y0_val, u1_chief_start, z0_rev_trace,
+        # reverse=True, skip=skip)
         #   y_fwd = -yn_rev[-1,0]
         #   u_fwd = un_rev[-1,0]
         # So, u1_chief_start is `u_start_for_unit_field_obj_space`
 
         y_obj_final_parts, u_obj_final_parts = optic.paraxial._trace_generic(
-            y_at_stop_center_for_bwd_arb, # y is 0 at stop center
-            u_start_for_unit_field_obj_space, # This is the u at the stop for the reverse trace
+            y_at_stop_center_for_bwd_arb,  # y is 0 at stop center
+            u_start_for_unit_field_obj_space,  # This is u at the stop for reverse trace
             z_coords_for_reverse_trace,
             wavelength,
             reverse=True,
@@ -160,34 +149,44 @@ class ParaxialFieldSolver(BaseFieldSolver):
         # If object is at finite distance, ray starts at object plane z.
         # Let's check object_surface.is_infinite
         if optic.object_surface.is_infinite:
-            # For infinite object, paraxial rays often start at/just before the first surface.
+            # For infinite object, paraxial rays often start at/just before the first
+            # surface.
             # The actual_y_start and actual_u_start are usually defined at this plane.
             z_start_fwd_trace = optic.surface_group.positions[1]
         else:
             # For finite object, ray starts at the object surface.
             z_start_fwd_trace = optic.object_surface.geometry.cs.z
-            # We need to propagate actual_y_start_for_unit_field and actual_u_start_for_unit_field
-            # from surface 1 (where they are currently defined if we followed chief_ray's reverse trace logic)
+            # We need to propagate actual_y_start_for_unit_field and
+            # actual_u_start_for_unit_field
+            # from surface 1 (where they are currently defined if we followed
+            # chief_ray's reverse trace logic)
             # to z_start_fwd_trace if z_start_fwd_trace is not positions[1].
-            # The values from reverse trace ending at object space are already at the object "plane"
+            # The values from reverse trace ending at object space are already at the
+            # object "plane"
             # (or reference plane for infinite).
-            # The `paraxial.chief_ray` forward trace `_trace_generic(y,u,z_start_fwd_trace)`
+            # The `paraxial.chief_ray` forward trace
+            # `_trace_generic(y,u,z_start_fwd_trace)`
             # implies y,u are known *at* z_start_fwd_trace.
-            # The yn_rev[-1], un_rev[-1] are values at the object side reference (often surf 1 for infinite, obj plane for finite).
-            # So, if z_start_fwd_trace is object_surface.z, and yn_rev[-1] was defined there, it's fine.
-            # The _trace_generic with reverse=True, when traced up to object space (skip= appropriate number),
-            # should yield y, u at the object plane or equivalent first reference surface.
-            pass # Assuming actual_y/u_start are correctly defined at the object reference plane for forward trace.
-
+            # The yn_rev[-1], un_rev[-1] are values at the object side reference (often
+            #  surf 1 for infinite, obj plane for finite).
+            # So, if z_start_fwd_trace is object_surface.z, and yn_rev[-1] was defined
+            # there, it's fine.
+            # The _trace_generic with reverse=True, when traced up to object space
+            # (skip= appropriate number),
+            # should yield y, u at the object plane or equivalent first reference
+            #  surface.
+            # Assuming actual_y/u_start are correctly defined at the object reference
+            # plane for forward trace.
+            pass
 
         # 2d: Perform Forward Trace for Unit Object Field
         y_trace_unit, _ = optic.paraxial._trace_generic(
             actual_y_start_for_unit_field,
             actual_u_start_for_unit_field,
-            z_start_fwd_trace, # Starting z position for the forward trace
+            z_start_fwd_trace,  # Starting z position for the forward trace
             wavelength,
             reverse=False,
-            skip=0, # Trace through all surfaces from start
+            skip=0,  # Trace through all surfaces from start
         )
         y_image_for_unit_object_field = y_trace_unit[-1]
 
