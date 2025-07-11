@@ -8,8 +8,6 @@ Kramer Harrison, 2025
 
 import optiland.backend as be
 from optiland.psf.fft import FFTPSF, calculate_grid_size
-import warnings
-import numpy as np # For np.isinf check
 
 from .base import BaseMTF
 
@@ -63,30 +61,18 @@ class FFTMTF(BaseMTF):
 
         self.FNO = self._get_fno()
 
-        if isinstance(max_freq, str) and max_freq == "cutoff":
-            if np.isinf(self.FNO) or self.FNO == 0:
-                self.max_freq = 100.0  # Default max_freq
-                warnings.warn(
-                    f"System FNO is {self.FNO}. This may indicate an afocal system or problematic configuration. "
-                    f"MTF max_freq defaulted to {self.max_freq} cycles/mm.",
-                    UserWarning,
-                )
-            else:
-                self.max_freq = 1 / (self.resolved_wavelength * 1e-3 * self.FNO)
+        if max_freq == "cutoff":
+            self.max_freq = 1 / (self.resolved_wavelength * 1e-3 * self.FNO)
         else:
             self.max_freq = float(max_freq)
 
         mtf_units = self._get_mtf_units()
-        if np.isinf(mtf_units):
-            warnings.warn(
-                f"Calculated MTF frequency unit is infinite (FNO: {self.FNO}). "
-                "Frequency axis may not be meaningful. Defaulting frequency range based on max_freq.",
-                UserWarning
+        if be.isinf(mtf_units):
+            raise ValueError(
+                f"Calculated MTF frequency unit is infinite (FNO: {self.FNO})."
             )
-            self.freq = be.linspace(0, self.max_freq, self.grid_size // 2)
-        else:
-            self.freq = be.arange(self.grid_size // 2) * mtf_units
 
+        self.freq = be.arange(self.grid_size // 2) * mtf_units
 
     def _calculate_psf(self):
         """Calculates and stores the Point Spread Function (PSF)

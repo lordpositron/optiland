@@ -69,10 +69,10 @@ class Paraxial:
         wavelength = self.optic.primary_wavelength
         y, u = self._trace_generic(1.0, 0.0, z_start, wavelength)
 
-        epsilon = 1e-12 # Small number to check for zero angle
+        epsilon = 1e-12  # Small number to check for zero angle
 
-        if be.abs(u[-1]) < epsilon: # Output ray is collimated
-            return be.inf # Effective focal length is infinite
+        if be.abs(u[-1]) < epsilon:  # Output ray is collimated
+            return be.inf  # Effective focal length is infinite
 
         f2_val = -y[0] / u[-1]
         return be.abs(f2_val[0])

@@ -7,8 +7,6 @@ Kramer Harrison, 2025
 """
 
 import matplotlib.pyplot as plt
-import warnings
-import numpy as np # For np.isinf check
 
 import optiland.backend as be
 from optiland.analysis import SpotDiagram
@@ -77,17 +75,9 @@ class GeometricMTF(SpotDiagram):
 
         self._resolved_wavelength_value = resolved_wavelength
 
-        if isinstance(max_freq, str) and max_freq == "cutoff":
+        if max_freq == "cutoff":
             fno = optic.paraxial.FNO()
-            if np.isinf(fno) or fno == 0:
-                self.max_freq = 100.0  # Default max_freq for problematic FNO
-                warnings.warn(
-                    f"System FNO is {fno}. This may indicate an afocal system or problematic configuration. "
-                    f"MTF max_freq defaulted to {self.max_freq} cycles/mm.",
-                    UserWarning,
-                )
-            else:
-                self.max_freq = 1 / (resolved_wavelength * 1e-3 * fno)
+            self.max_freq = 1 / (resolved_wavelength * 1e-3 * fno)
         else:
             self.max_freq = float(max_freq)
 
