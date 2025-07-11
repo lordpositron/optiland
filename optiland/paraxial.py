@@ -61,15 +61,21 @@ class Paraxial:
         """Calculate the back focal length (f2), also known as effective focal length.
 
         Returns:
-            float: Back focal length.
-
+            float: Back focal length. Returns `be.inf` (a float representation
+                   of infinity) if the system is afocal or output rays are collimated.
         """
         # start tracing 1 lens unit before first surface
         z_start = self.surfaces.positions[1] - 1
         wavelength = self.optic.primary_wavelength
         y, u = self._trace_generic(1.0, 0.0, z_start, wavelength)
-        f2 = -y[0] / u[-1]
-        return be.abs(f2[0])
+
+        epsilon = 1e-12 # Small number to check for zero angle
+
+        if be.abs(u[-1]) < epsilon: # Output ray is collimated
+            return be.inf # Effective focal length is infinite
+
+        f2_val = -y[0] / u[-1]
+        return be.abs(f2_val[0])
 
     def F1(self):
         """Calculate the front focal point (F1) location.

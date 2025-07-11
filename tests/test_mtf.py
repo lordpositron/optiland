@@ -5,7 +5,15 @@ matplotlib.use("Agg")  # ensure non-interactive backend for testing
 import matplotlib.pyplot as plt
 from unittest.mock import patch
 
+import warnings
+import numpy as np
+
 import optiland.backend as be
+from optiland.optic import Optic
+# ParaxialSurface class is not directly instantiated now, but good to know it exists
+# from optiland.surfaces import ParaxialSurface
+from optiland.geometries import Plane # Though not strictly needed if using surface_type="paraxial"
+from optiland.materials import Ideal
 from optiland.mtf import GeometricMTF, FFTMTF
 from optiland.samples.objectives import CookeTriplet
 
@@ -94,3 +102,82 @@ class TestFFTMTF:
 
         assert m.num_rays == expected_pupil_sampling
         assert m.grid_size == 2 * num_rays
+
+
+@pytest.fixture
+def afocal_optic(set_test_backend): # Added set_test_backend to use be.inf correctly
+    """Creates a simple afocal optical system."""
+    optic = Optic(name="AfocalTestSystem")
+    optic.set_field_type("angle")
+    optic.add_field(y=0)
+    optic.add_wavelength(value=0.55, is_primary=True)
+
+    optic.add_surface(surface_type="object", material=Ideal())
+
+    # Add ParaxialSurface with infinite focal length using surface_type
+    optic.add_surface(
+        surface_type="paraxial",
+        focal_length=be.inf, # Use backend-aware infinity
+        is_stop=True,
+        material=Ideal() # Assumes material post this surface if not specified, or handled by factory
+    )
+
+    optic.add_surface(surface_type="image", material=Ideal())
+    optic.set_aperture(aperture_type="EPD", value=10.0)
+
+    optic.update()
+    return optic
+
+
+class TestAfocalSystemMTF:
+    @patch("matplotlib.pyplot.show")
+    def test_mtf_afocal_behavior(self, mock_show, set_test_backend, afocal_optic):
+        """
+        Tests MTF for an afocal system, checking warnings and behavior.
+        """
+        # --- Test GeometricMTF ---
+        expected_warning_msg = "System FNO is inf.*MTF max_freq defaulted to 100.0 cycles/mm"
+        with pytest.warns(UserWarning, match=expected_warning_msg) as record_geom:
+            gmtf = GeometricMTF(afocal_optic, max_freq="cutoff")
+
+        assert len(record_geom) == 1
+        assert not any(w.category == RuntimeWarning for w in record_geom)
+
+        assert gmtf.max_freq == pytest.approx(100.0)
+        assert np.isinf(afocal_optic.paraxial.FNO())
+
+        with warnings.catch_warnings(record=True) as record_gmtf_view:
+            warnings.simplefilter("always")
+            gmtf.view()
+            assert len(record_gmtf_view) == 0, \
+                f"gmtf.view() generated warnings: {[str(w.message) for w in record_gmtf_view]}"
+        mock_show.assert_called_once()
+        plt.close("all")
+        mock_show.reset_mock()
+
+        # --- Test FFTMTF ---
+        # Expect two specific UserWarnings for FFTMTF
+        with warnings.catch_warnings(record=True) as record_fft:
+            warnings.simplefilter("always")
+            fft_mtf = FFTMTF(afocal_optic, max_freq="cutoff", num_rays=32)
+
+        raised_messages = [str(w.message) for w in record_fft]
+
+        max_freq_warning_found = any(np.core.defchararray.match(expected_warning_msg, msg) for msg in raised_messages)
+        mtf_unit_warning_found = any(np.core.defchararray.match("Calculated MTF frequency unit is infinite.*", msg) for msg in raised_messages)
+
+        assert max_freq_warning_found, "FFTMTF max_freq default warning missing."
+        assert mtf_unit_warning_found, "FFTMTF MTF unit warning missing."
+        assert len(record_fft) == 2, f"Expected 2 warnings for FFTMTF, got {len(record_fft)}: {raised_messages}"
+
+        assert not any(w.category == RuntimeWarning for w in record_fft)
+        assert fft_mtf.max_freq == pytest.approx(100.0)
+
+        with warnings.catch_warnings(record=True) as record_fft_view:
+            warnings.simplefilter("always")
+            fft_mtf.view()
+            assert len(record_fft_view) == 0, \
+                f"fft_mtf.view() generated warnings: {[str(w.message) for w in record_fft_view]}"
+
+        mock_show.assert_called_once()
+        plt.close("all")
