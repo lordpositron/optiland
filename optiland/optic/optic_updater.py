@@ -11,6 +11,13 @@ from typing import Union
 
 import optiland.backend as be
 from optiland.apodization import BaseApodization
+from optiland.fields.base import BaseFieldStrategy
+from optiland.fields.solvers import ParaxialFieldSolver
+from optiland.fields.strategies import (
+    AngleField,
+    ImageSpaceField,
+    ObjectHeightField,
+)
 from optiland.geometries import Plane, StandardGeometry
 from optiland.materials import IdealMaterial
 from optiland.materials.base import BaseMaterial
@@ -30,6 +37,54 @@ class OpticUpdater:
 
     def __init__(self, optic):
         self.optic = optic
+
+    def set_field_type(self, field_type):
+        strategy_instance: BaseFieldStrategy
+
+        if field_type == "object_height":
+            strategy_instance = ObjectHeightField()
+        elif field_type == "angle":
+            strategy_instance = AngleField()
+        elif field_type in ("paraxial_image_height", "real_image_height"):
+            # Determine solver
+            if field_type == "paraxial_image_height":
+                solver = ParaxialFieldSolver()
+            else:  # real_image_height
+                raise NotImplementedError(
+                    "Real image height field type is not yet implemented."
+                )
+
+            # Determine underlying base strategy
+            if self.optic.object_surface is None:
+                raise RuntimeError(
+                    f"Cannot set field type to '{field_type}' before an "
+                    "object surface is defined. Needed for infinite conjugate check."
+                )
+
+            if self.optic.object_surface.is_infinite:
+                base_strategy = AngleField()
+            else:
+                base_strategy = ObjectHeightField()
+
+            strategy_instance = ImageSpaceField(
+                solver=solver, base_strategy=base_strategy
+            )
+        else:
+            valid_types = (
+                '"object_height", "angle", "paraxial_image_height", '
+                'or "real_image_height"'
+            )
+            error_msg = (
+                f"Invalid field_type string: '{field_type}'. "
+                f"Must be one of {valid_types}."
+            )
+            raise ValueError(error_msg)
+
+        # Validate optic state with the new strategy before assigning
+        # This also validates the base_strategy for ImageSpaceField.
+        strategy_instance.validate_optic_state(self.optic)
+
+        self.optic.field_type = strategy_instance
 
     def set_radius(self, value, surface_number):
         """Set the radius of curvature of a surface.
