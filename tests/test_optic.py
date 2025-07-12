@@ -119,7 +119,7 @@ class TestOptic:
         assert self.optic.aperture.value == 5.0
 
     def test_set_field_type(self, set_test_backend):
-        from optiland.fields.solvers import ParaxialFieldSolver, RealFieldSolver
+        from optiland.fields.field_solvers import ParaxialFieldSolver, RealFieldSolver
         from optiland.fields.strategies import (
             AngleField,
             ImageSpaceField,

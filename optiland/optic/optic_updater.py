@@ -12,7 +12,7 @@ from typing import Union
 import optiland.backend as be
 from optiland.apodization import BaseApodization
 from optiland.fields.base import BaseFieldStrategy
-from optiland.fields.solvers import ParaxialFieldSolver
+from optiland.fields.field_solvers import ParaxialFieldSolver
 from optiland.fields.strategies import (
     AngleField,
     ImageSpaceField,
