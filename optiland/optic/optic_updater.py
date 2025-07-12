@@ -11,13 +11,12 @@ from typing import Union
 
 import optiland.backend as be
 from optiland.apodization import BaseApodization
-from optiland.fields.base import BaseFieldStrategy
-from optiland.fields.field_solvers import ParaxialFieldSolver
-from optiland.fields.strategies import (
+from optiland.fields.field_modes import (
     AngleField,
     ImageSpaceField,
     ObjectHeightField,
 )
+from optiland.fields.field_solvers import ParaxialFieldSolver
 from optiland.geometries import Plane, StandardGeometry
 from optiland.materials import IdealMaterial
 from optiland.materials.base import BaseMaterial
@@ -39,8 +38,15 @@ class OpticUpdater:
         self.optic = optic
 
     def set_field_type(self, field_type):
-        strategy_instance: BaseFieldStrategy
+        """Set the field type for the optical system.
 
+        Args:
+            field_type (str): The type of field to set. Can be one of:
+                - "object_height": Uses ObjectHeightField strategy.
+                - "angle": Uses AngleField strategy.
+                - "paraxial_image_height": Uses ParaxialFieldSolver with ImageSpaceField
+                - "real_image_height": Not yet implemented, raises NotImplementedError.
+        """
         if field_type == "object_height":
             strategy_instance = ObjectHeightField()
         elif field_type == "angle":

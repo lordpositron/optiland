@@ -19,7 +19,7 @@ from scipy.interpolate import griddata
 
 import optiland.backend as be
 from optiland.distribution import create_distribution
-from optiland.fields.strategies import AngleField  # For type checking
+from optiland.fields.field_modes import AngleField
 from optiland.zernike import ZernikeFit
 
 

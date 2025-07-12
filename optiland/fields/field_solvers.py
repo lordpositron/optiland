@@ -10,7 +10,7 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 
-from .strategies import ImageSpaceField
+from .field_modes import ImageSpaceField
 
 
 class BaseFieldSolver(ABC):

@@ -17,10 +17,9 @@ from typing import Union
 from optiland.aberrations import Aberrations
 from optiland.aperture import Aperture
 from optiland.apodization import BaseApodization
-from optiland.fields.base import BaseFieldStrategy
 from optiland.fields.field import Field
 from optiland.fields.field_group import FieldGroup
-from optiland.fields.strategies import (
+from optiland.fields.field_modes import (
     AngleField,
     ObjectHeightField,
 )
@@ -78,9 +77,7 @@ class Optic:
     def _initialize_attributes(self):
         """Reset the optical system to its initial state."""
         self.aperture = None
-        self.field_type: BaseFieldStrategy | None = (
-            None  # Will hold a strategy instance
-        )
+        self.field_type = None
 
         self.surface_group = SurfaceGroup()
         self.fields = FieldGroup()

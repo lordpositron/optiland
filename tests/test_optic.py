@@ -120,7 +120,7 @@ class TestOptic:
 
     def test_set_field_type(self, set_test_backend):
         from optiland.fields.field_solvers import ParaxialFieldSolver, RealFieldSolver
-        from optiland.fields.strategies import (
+        from optiland.fields.field_modes import (
             AngleField,
             ImageSpaceField,
             ObjectHeightField,
@@ -490,7 +490,7 @@ class TestOptic:
         assert lens_dict["fields"]["field_type"] == "angle"
 
     def test_from_dict(self, set_test_backend):
-        from optiland.fields.strategies import AngleField, ObjectHeightField
+        from optiland.fields.field_modes import AngleField, ObjectHeightField
 
         lens = HeliarLens()  # field_type "angle"
         lens.set_apodization(GaussianApodization(sigma=0.5))
