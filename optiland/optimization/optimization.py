@@ -8,10 +8,7 @@ using different optimization algorithms.
 Kramer Harrison, 2024
 """
 
-import warnings
-
 import pandas as pd
-from scipy import optimize
 
 import optiland.backend as be
 from optiland.optimization.operand import OperandManager
@@ -161,10 +158,3 @@ class OptimizationProblem:
         self.merit_info()
         self.operand_info()
         self.variable_info()
-
-
-# All optimizer classes have been moved to the 'algorithms' subdirectory.
-# This file now primarily contains the OptimizationProblem class.
-# Consider moving OptimizationProblem to its own file like 'problem.py'
-# in a future refactoring if this file becomes too lean or if
-# OptimizationProblem grows significantly.

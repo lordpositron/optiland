@@ -3,12 +3,13 @@ import warnings
 import optiland.backend as be
 import pytest
 
-from optiland.optimization import optimization
+from optiland.optimization import optimization, glass_expert
 from optiland.samples.microscopes import (
     Microscope20x,
     Objective60x,
     UVReflectingMicroscope,
 )
+from optiland.samples.objectives import CookeTriplet
 
 
 class TestOptimizationProblem:
