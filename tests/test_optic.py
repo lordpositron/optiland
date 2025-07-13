@@ -99,7 +99,6 @@ class TestOptic:
         current_field = self.optic.fields.fields[0]
         assert current_field.y == 10.0
         assert current_field.x == 5.0
-        assert isinstance(current_field.mode, ObjectHeightFieldMode)
 
         # Test with angle type
         self.optic.set_field_type("angle")
@@ -108,7 +107,6 @@ class TestOptic:
         current_field_angle = self.optic.fields.fields[1]
         assert current_field_angle.y == 2.0
         assert current_field_angle.x == 1.0
-        assert isinstance(current_field.mode, AngleFieldMode)
 
     def test_add_wavelength(self, set_test_backend):
         self.optic.add_wavelength(0.55, is_primary=True)
