@@ -42,6 +42,9 @@ class ParaxialFieldSolver(BaseFieldSolver):
     Solves for the object-space field using paraxial ray tracing.
     """
 
+    def __init__(self):
+        self.type_ = "paraxial_image_height"
+
     def solve(self, optic, target_image_height: float) -> float:
         """
         Calculates the object-space field value for a target image height
@@ -59,14 +62,14 @@ class ParaxialFieldSolver(BaseFieldSolver):
             raise ValueError("Optic has no fields defined.")
 
         # Step 1: Determine Base Field Strategy
-        field_type_strategy = optic.field_type
-        if isinstance(field_type_strategy, ImageSpaceFieldMode):
-            base_object_field_strategy = field_type_strategy.base_strategy
+        field_type_mode = optic.field_type
+        if isinstance(field_type_mode, ImageSpaceFieldMode):
+            base_object_field_mode = field_type_mode.base_mode
         else:
-            base_object_field_strategy = field_type_strategy
+            base_object_field_mode = field_type_mode
 
-        if not base_object_field_strategy:
-            raise ValueError("Could not determine a valid base object field strategy.")
+        if not base_object_field_mode:
+            raise ValueError("Could not determine a valid base object field mode.")
 
         # Step 2: Simulate Image Height for a Unit Object Field
         unit_object_field_value = 1.0  # e.g., 1mm or 1 degree
@@ -96,9 +99,9 @@ class ParaxialFieldSolver(BaseFieldSolver):
         # 2b: Get chief ray start params for the unit object field
         with override_property(optic.fields, "max_y_field", unit_object_field_value):
             # Temporarily set max_y_field to our unit value for the call
-            # The strategy's get_chief_ray_start_params will use this temp value
+            # The mode's get_chief_ray_start_params will use this temp value
             u_start_for_unit_field_obj_space = (
-                base_object_field_strategy.get_chief_ray_start_params(
+                base_object_field_mode.get_chief_ray_start_params(
                     optic, y_obj_at_ref_backward, u_obj_at_ref_backward
                 )
             )

@@ -64,6 +64,7 @@ class ObjectHeightFieldMode(BaseFieldMode):
 
     def __init__(self):
         """Initializes an ObjectHeightMode."""
+        self.type_ = "object_height"
         super().__init__()
 
     def get_ray_origins(self, optic, Hx, Hy, Px, Py, vx, vy):
@@ -224,6 +225,7 @@ class AngleFieldMode(BaseFieldMode):
 
     def __init__(self):
         """Initializes an AngleMode."""
+        self.type_ = "angle"
         super().__init__()
 
     def get_ray_origins(self, optic, Hx, Hy, Px, Py, vx, vy):
@@ -420,6 +422,11 @@ class ImageSpaceFieldMode(BaseFieldMode):
         """
         self.solver = solver
         self.base_mode = base_mode
+
+    @property
+    def type_(self):
+        """Returns the type of this field mode."""
+        return self.solver.type_
 
     def get_ray_origins(self, optic, Hx, Hy, Px, Py, vx, vy):
         """Calculate ray origin coordinates for image height fields.

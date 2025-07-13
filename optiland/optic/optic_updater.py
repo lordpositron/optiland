@@ -41,38 +41,39 @@ class OpticUpdater:
         """Set the field type for the optical system.
 
         This method takes a string identifier ("object_height" or "angle") and
-        instantiates the corresponding field strategy object. For direct
+        instantiates the corresponding field field_mode object. For direct
         object-space definitions like "object_height" or "angle", it creates
         `ObjectHeightField` or `AngleField` respectively. For image-space
         definitions like "paraxial_image_height" or "real_image_height", it
-        composes an `ImageSpaceField` strategy with the appropriate solver
+        composes an `ImageSpaceField` field_mode with the appropriate solver
         (ParaxialFieldSolver or RealFieldSolver) and an underlying object-space
-        strategy (AngleField for infinite conjugate, ObjectHeightField otherwise).
+        field_mode (AngleField for infinite conjugate, ObjectHeightField otherwise).
 
-        The instantiated strategy is stored in `self.field_type` and used for
-        all field-dependent calculations. The chosen strategy also validates
+        The instantiated field_mode is stored in `self.field_type` and used for
+        all field-dependent calculations. The chosen field_mode also validates
         the current optic state for compatibility.
 
         Args:
             field_type (str): The type of field to set. Can be one of:
-                - "object_height": Uses ObjectHeightField strategy.
-                - "angle": Uses AngleField strategy.
-                - "paraxial_image_height": Uses ParaxialFieldSolver with ImageSpaceField
+                - "object_height": Uses ObjectHeightFieldMode.
+                - "angle": Uses AngleFieldMode.
+                - "paraxial_image_height": Uses ParaxialFieldSolver with
+                    ImageSpaceFieldMode
                 - "real_image_height": Not yet implemented, raises NotImplementedError.
 
         Raises:
             ValueError: If an invalid field_type string is provided, or if the
-                        chosen strategy's `validate_optic_state` check fails,
-                        or if an image-space strategy cannot determine the
-                        underlying object-space strategy (e.g., object surface
+                        chosen field_mode's `validate_optic_state` check fails,
+                        or if an image-space field_mode cannot determine the
+                        underlying object-space field_mode (e.g., object surface
                         not yet defined).
-            RuntimeError: If components required by the chosen strategy are missing
+            RuntimeError: If components required by the chosen field_mode are missing
                           (e.g. object surface for image space strategies).
         """
         if field_type == "object_height":
-            strategy_instance = ObjectHeightFieldMode()
+            field_mode_instance = ObjectHeightFieldMode()
         elif field_type == "angle":
-            strategy_instance = AngleFieldMode()
+            field_mode_instance = AngleFieldMode()
         elif field_type in ("paraxial_image_height", "real_image_height"):
             # Determine solver
             if field_type == "paraxial_image_height":
@@ -82,7 +83,7 @@ class OpticUpdater:
                     "Real image height field type is not yet implemented."
                 )
 
-            # Determine underlying base strategy
+            # Determine underlying base field_mode
             if self.optic.object_surface is None:
                 raise RuntimeError(
                     f"Cannot set field type to '{field_type}' before an "
@@ -90,12 +91,12 @@ class OpticUpdater:
                 )
 
             if self.optic.object_surface.is_infinite:
-                base_strategy = AngleFieldMode()
+                base_mode = AngleFieldMode()
             else:
-                base_strategy = ObjectHeightFieldMode()
+                base_mode = ObjectHeightFieldMode()
 
-            strategy_instance = ImageSpaceFieldMode(
-                solver=solver, base_strategy=base_strategy
+            field_mode_instance = ImageSpaceFieldMode(
+                solver=solver, base_mode=base_mode
             )
         else:
             valid_types = (
@@ -108,11 +109,11 @@ class OpticUpdater:
             )
             raise ValueError(error_msg)
 
-        # Validate optic state with the new strategy before assigning
-        # This also validates the base_strategy for ImageSpaceField.
-        strategy_instance.validate_optic_state(self.optic)
+        # Validate optic state with the new field_mode before assigning
+        # This also validates the base_mode for ImageSpaceField.
+        field_mode_instance.validate_optic_state(self.optic)
 
-        self.optic.field_type = strategy_instance
+        self.optic.field_type = field_mode_instance
 
     def set_radius(self, value, surface_number):
         """Set the radius of curvature of a surface.
