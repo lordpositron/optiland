@@ -187,7 +187,7 @@ class Optic:
         """
         if not self.fields:
             raise ValueError("Must first specify field type via `set_field_type`.")
-        self.fields.add_field(x, y, vx, vy)
+        self.fields.add_field(y, x, vx, vy)
 
     def add_wavelength(self, value, is_primary=False, unit="um"):
         """Add a wavelength to the optical system.
