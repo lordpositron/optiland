@@ -19,6 +19,13 @@ class BaseFieldMode(ABC):
     Abstract base class for defining field modes.
     """
 
+    _registry = {}
+
+    def __init_subclass__(cls, **kwargs):
+        """Automatically register subclasses."""
+        super().__init_subclass__(**kwargs)
+        BaseFieldMode._registry[cls.__name__] = cls
+
     @abstractmethod
     def get_ray_origins(self, optic, Hx, Hy, Px, Py, vx, vy):
         """
@@ -48,6 +55,35 @@ class BaseFieldMode(ABC):
         Validates the optic state based on the field type.
         """
         pass
+
+    def to_dict(self):
+        """Convert the geometry to a dictionary.
+
+        Returns:
+            dict: The dictionary representation of the geometry.
+
+        """
+        return {"type": self.__class__.__name__, "cs": self.cs.to_dict()}
+
+    @classmethod
+    def from_dict(cls, data):
+        """Create a field mode from a dictionary.
+
+        Args:
+            data (dict): A dictionary containing the field mode data, including
+                its 'type'.
+
+        Returns:
+            BaseFieldMode: An instance of a specific geometry subclass created
+            from the dictionary data.
+
+        """
+        field_mode_type = data.get("type")
+        if field_mode_type not in cls._registry:
+            raise ValueError(f"Unknown field mode type: {field_mode_type}")
+
+        # Delegate to the correct subclass's from_dict
+        return cls._registry[field_mode_type].from_dict(data)
 
 
 class ObjectHeightFieldMode(BaseFieldMode):
@@ -390,9 +426,36 @@ class AngleFieldMode(BaseFieldMode):
 
 
 class ParaxialImageHeightFieldMode:
-    pass
+    def to_dict(self):
+        """Converts the geometry to a dictionary.
+
+        Returns:
+            dict: The dictionary representation of the geometry.
+
+        """
+        data = super().to_dict()
+        data["base_mode"] = self.base_mode.to_dict()
+        return data
+
+    @classmethod
+    def from_dict(cls, data):
+        """Creates an ParaxialImageHeightFieldMode instance from a
+        dictionary representation.
+
+        Args:
+            data (dict): The dictionary representation of the field mode.
+
+        Returns:
+            ParaxialImageHeightFieldMode: An instance of ParaxialImageHeightFieldMode.
+
+        """
+        if "base_mode" not in data:
+            raise ValueError("Missing 'base_mode' key.")
+
+        base_mode = BaseFieldMode.from_dict(data["base_mode"])
+        return cls(base_mode)
 
 
-class RealImageHeightFieldMode:
+class RealImageHeightFieldMode(ParaxialImageHeightFieldMode):
     def __init__(self):
         raise NotImplementedError("Real image height field mode not yet implemented.")
