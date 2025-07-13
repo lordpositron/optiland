@@ -11,7 +11,6 @@ class Field:
     """Represents a field with specific properties.
 
     Attributes:
-        mode (str): The type of the field.
         x (int): The x-coordinate of the field.
         y (int): The y-coordinate of the field.
         vx (float): The vignette factor in the x-direction.
@@ -21,13 +20,11 @@ class Field:
 
     def __init__(
         self,
-        mode,
         x=0,
         y=0,
         vignette_factor_x=0.0,
         vignette_factor_y=0.0,
     ):
-        self.mode = mode
         self.x = x
         self.y = y
         self.vx = vignette_factor_x
@@ -41,7 +38,6 @@ class Field:
 
         """
         return {
-            "mode": self.mode,
             "x": self.x,
             "y": self.y,
             "vx": self.vx,
@@ -59,11 +55,7 @@ class Field:
             Field: A field object created from the dictionary.
 
         """
-        if "mode" not in field_dict:
-            raise ValueError("Missing required keys: mode")
-
         return cls(
-            field_dict["mode"],
             field_dict.get("x", 0),
             field_dict.get("y", 0),
             field_dict.get("vx", 0.0),
