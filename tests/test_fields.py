@@ -1,7 +1,9 @@
 import optiland.backend as be
 import pytest
 
-from optiland import fields
+from optiland.fields.field import Field
+from optiland.fields.field_group import FieldGroup
+from optiland.fields import field_modes
 from .utils import assert_allclose
 
 
@@ -10,7 +12,7 @@ from .utils import assert_allclose
     [(0, 0), (5.3, 8.5), (0, 4.2)],
 )
 def test_field(set_test_backend, x, y):
-    f = fields.Field(x, y)
+    f = Field(x, y)
 
     assert f.x == x
     assert f.y == y
@@ -18,7 +20,7 @@ def test_field(set_test_backend, x, y):
 
 def test_field_group_inputs(set_test_backend):
     input_data = [(0, 0), (5, 0), (0, 6), (7, 9.2)]
-    f = fields.FieldGroup(mode=fields.field_modes.AngleFieldMode())
+    f = FieldGroup(mode=field_modes.AngleFieldMode())
     for field_data in input_data:
         f.add_field(y=field_data[1], x=field_data[0])
 
@@ -32,7 +34,7 @@ def test_field_group_inputs(set_test_backend):
 
 def test_field_group_getters(set_test_backend):
     input_data = [(0, 0), (2.5, 0), (0, 2), (4, 3)]
-    f = fields.FieldGroup(mode=fields.field_modes.AngleFieldMode())
+    f = FieldGroup(mode=field_modes.AngleFieldMode())
     for field_data in input_data:
         f.add_field(y=field_data[1], x=field_data[0])
 
@@ -44,20 +46,20 @@ def test_field_group_getters(set_test_backend):
     assert f.get_field(3).y == 3
 
     # test case when max field is zero
-    f = fields.FieldGroup(mode=fields.field_modes.AngleFieldMode())
+    f = FieldGroup(mode=field_modes.AngleFieldMode())
     f.add_field(y=0, x=0)
     assert f.get_field_coords() == [(0, 0)]
 
 
 def test_field_group_get_vig_factor(set_test_backend):
-    f = fields.FieldGroup(mode=fields.field_modes.AngleFieldMode())
+    f = FieldGroup(mode=field_modes.AngleFieldMode())
     f.add_field(y=0, x=0)
 
     vx, ny = f.get_vig_factor(1, 1)
     assert vx == 0.0
     assert vx == 0.0
 
-    f = fields.FieldGroup(mode=fields.field_modes.AngleFieldMode())
+    f = FieldGroup(mode=field_modes.AngleFieldMode())
     f.add_field(y=0, x=0, vx=0.2, vy=0.2)
     f.add_field(y=7, x=0, vx=0.2, vy=0.2)
     f.add_field(y=10, x=0, vx=0.2, vy=0.2)
@@ -72,7 +74,7 @@ def test_field_group_get_vig_factor(set_test_backend):
 
 
 def test_field_group_telecentric(set_test_backend):
-    f = fields.FieldGroup(mode=fields.field_modes.AngleFieldMode())
+    f = FieldGroup(mode=field_modes.AngleFieldMode())
     assert f.telecentric is False
 
     f.set_telecentric(True)
@@ -80,13 +82,13 @@ def test_field_group_telecentric(set_test_backend):
 
 
 def test_field_to_dict(set_test_backend):
-    f = fields.Field(x=0, y=0)
+    f = Field(x=0, y=0)
     assert f.to_dict() == {"x": 0, "y": 0, "vx": 0.0, "vy": 0.0}
 
 
 def test_field_group_to_dict(set_test_backend):
     input_data = [(0, 0), (2.5, 0), (0, 2), (4, 3)]
-    f = fields.FieldGroup(mode=fields.field_modes.AngleFieldMode())
+    f = FieldGroup(mode=field_modes.AngleFieldMode())
     for field_data in input_data:
         f.add_field(y=field_data[1], x=field_data[0])
 
@@ -103,7 +105,7 @@ def test_field_group_to_dict(set_test_backend):
 
 
 def test_field_from_dict(set_test_backend):
-    f = fields.Field.from_dict(
+    f = Field.from_dict(
         {"x": 0, "y": 0, "vx": 0, "vy": 0},
     )
     assert f.x == 0
@@ -113,7 +115,7 @@ def test_field_from_dict(set_test_backend):
 
 
 def test_field_group_from_dict(set_test_backend):
-    f = fields.FieldGroup.from_dict(
+    f = FieldGroup.from_dict(
         {
             "fields": [
                 {"x": 0, "y": 0, "vx": 0, "vy": 0},

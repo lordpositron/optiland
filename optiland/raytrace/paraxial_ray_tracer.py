@@ -44,13 +44,11 @@ class ParaxialRayTracer:
 
         if not self.optic.field_type:
             raise RuntimeError("Optic.field_type strategy is not set.")
-        y0, z0 = self.optic.field_type.get_paraxial_object_position(
+        y0, z0 = self.optic.fields.mode.get_paraxial_object_position(
             self.optic, Hy, y1, EPL
         )
 
         # Calculate initial ray angle u0.
-        # This involves handling potential division by zero if the object is
-        # at the entrance pupil location (EPL).
         delta_z = EPL - z0
         if be.any(be.isclose(delta_z, 0.0)):
             if self.optic.object_surface.is_infinite:
