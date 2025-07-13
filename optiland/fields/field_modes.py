@@ -270,7 +270,7 @@ class AngleFieldMode(BaseFieldMode):
             z_surf_internal = optic.surface_group.positions[1:-1]
             offset_val = optic.paraxial.EPD()
             starting_z_offset = offset_val - (
-                be.min(z_surf_internal) if z_surf_internal.size > 0 else 0
+                be.min(z_surf_internal) if be.size(z_surf_internal) > 0 else 0
             )
 
             # Ray starting plane z-coordinate relative to first optical surface

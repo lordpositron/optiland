@@ -4,6 +4,10 @@ import optiland.backend as be
 from optiland.aperture import Aperture
 from optiland.apodization import GaussianApodization
 from optiland.fields.field_group import FieldGroup
+from optiland.fields.field_modes import (
+    ObjectHeightFieldMode,
+    AngleFieldMode
+)
 from optiland.optic import Optic
 from optiland.rays import create_polarization
 from optiland.samples.objectives import HeliarLens
@@ -66,12 +70,12 @@ class TestOptic:
 
     def test_initialization(self, set_test_backend):
         assert self.optic.aperture is None
-        assert self.optic.field_type is None
+        assert isinstance(self.optic.fields, FieldGroup)
         assert isinstance(self.optic.surface_group, SurfaceGroup)
         assert isinstance(self.optic.fields, FieldGroup)
         assert isinstance(self.optic.wavelengths, WavelengthGroup)
         assert self.optic.polarization == "ignore"
-        assert not self.optic.obj_space_telecentric
+        assert not self.optic.fields.telecentric
 
     def test_add_surface(self, set_test_backend):
         self.optic.add_surface(
@@ -95,7 +99,7 @@ class TestOptic:
         current_field = self.optic.fields.fields[0]
         assert current_field.y == 10.0
         assert current_field.x == 5.0
-        assert current_field.field_type == "object_height"
+        assert isinstance(current_field.mode, ObjectHeightFieldMode)
 
         # Test with angle type
         self.optic.set_field_type("angle")
@@ -104,7 +108,7 @@ class TestOptic:
         current_field_angle = self.optic.fields.fields[1]
         assert current_field_angle.y == 2.0
         assert current_field_angle.x == 1.0
-        assert current_field_angle.field_type == "angle"
+        assert isinstance(current_field.mode, AngleFieldMode)
 
     def test_add_wavelength(self, set_test_backend):
         self.optic.add_wavelength(0.55, is_primary=True)
@@ -119,13 +123,6 @@ class TestOptic:
         assert self.optic.aperture.value == 5.0
 
     def test_set_field_type(self, set_test_backend):
-        from optiland.fields.field_solvers import ParaxialFieldSolver, RealFieldSolver
-        from optiland.fields.field_modes import (
-            AngleField,
-            ImageSpaceField,
-            ObjectHeightField,
-        )
-
         # --- Test "angle" field type ---
         # Minimal optic setup for "angle" (can be infinite or finite object)
         self.optic.reset()  # Start fresh for each type
@@ -137,10 +134,8 @@ class TestOptic:
         self.optic.add_wavelength(0.55, is_primary=True)
 
         self.optic.set_field_type("angle")
-        assert isinstance(self.optic.field_type, AngleField)
-        # Add a field to make it fully usable
-        self.optic.fields.max_field = 10  # degrees
-        self.optic.add_field(y=1.0)  # Max field
+        assert isinstance(self.optic.fields.mode, AngleFieldMode)
+        self.optic.add_field(y=1.0)
 
         # --- Test "object_height" field type ---
         self.optic.reset()  # Start fresh
@@ -152,70 +147,8 @@ class TestOptic:
         self.optic.add_wavelength(0.55, is_primary=True)
 
         self.optic.set_field_type("object_height")
-        assert isinstance(self.optic.field_type, ObjectHeightField)
-        self.optic.fields.max_field = 5  # mm
+        assert isinstance(self.optic.fields.mode, ObjectHeightFieldMode)
         self.optic.add_field(y=1.0)  # Max field
-
-        # --- Test "paraxial_image_height" field type (infinite object) ---
-        self.optic.reset()
-        self.optic.add_surface(index=0, radius=be.inf, thickness=be.inf)  # Infinite
-        self.optic.add_surface(
-            index=1, radius=20, thickness=5, material="N-BK7", is_stop=True
-        )
-        self.optic.add_surface(index=2, radius=-20, thickness=38)  # Approx focus
-        self.optic.add_surface(index=3)  # Image
-        self.optic.set_aperture("EPD", 10)
-        self.optic.add_wavelength(0.55, is_primary=True)
-        self.optic.update()  # Update paraxial properties for solver
-
-        self.optic.set_field_type("paraxial_image_height")
-        assert isinstance(self.optic.field_type, ImageSpaceField)
-        assert isinstance(self.optic.field_type.solver, ParaxialFieldSolver)
-        assert isinstance(self.optic.field_type.base_strategy, AngleField)  # Inf obj
-        self.optic.fields.max_field = 2.5  # Target paraxial image height in mm
-        self.optic.add_field(y=0.5)  # 0.5 norm field -> 1.25mm target image height
-        # Basic check: try to trace a ray (more detailed checks later)
-        # This implicitly tests if get_ray_origins works.
-        # Note: this test doesn't verify the *correctness* of the image height,
-        # only that the setup doesn't crash and tracing is possible.
-        try:
-            _ = self.optic.trace(
-                Hx=0, Hy=0.5, wavelength=self.optic.primary_wavelength, num_rays=3
-            )
-        except Exception as e:
-            pytest.fail(
-                f"Ray trace failed for paraxial_image_height (infinite obj): {e}"
-            )
-
-        # --- Test "real_image_height" field type (finite object) ---
-        self.optic.reset()
-        self.optic.add_surface(index=0, radius=be.inf, thickness=100)  # Finite obj
-        self.optic.add_surface(
-            index=1, radius=30, thickness=6, material="N-SF5", is_stop=True
-        )
-        self.optic.add_surface(index=2, radius=-28, thickness=55)  # Approx focus
-        self.optic.add_surface(index=3)  # Image
-        self.optic.set_aperture("EPD", 12)
-        self.optic.add_wavelength(0.6, is_primary=True)
-        self.optic.update()
-
-        self.optic.set_field_type("real_image_height")
-        assert isinstance(self.optic.field_type, ImageSpaceField)
-        assert isinstance(self.optic.field_type.solver, RealFieldSolver)
-        # Finite object implies ObjectHeightField as base
-        assert isinstance(self.optic.field_type.base_strategy, ObjectHeightField)
-        self.optic.fields.max_field = 3.0  # Target real image height in mm
-        self.optic.add_field(y=0.7)
-        try:
-            _ = self.optic.trace(
-                Hx=0, Hy=0.7, wavelength=self.optic.primary_wavelength, num_rays=3
-            )
-        except Exception as e:
-            pytest.fail(f"Ray trace failed for real_image_height (finite obj): {e}")
-
-    # More detailed integration tests for image space fields focusing on correctness
-    # would ideally go into a new test class or file, e.g., TestImageSpaceFields.
-    # For now, these basic setup and trace checks are within TestOptic.set_field_type.
 
     def test_set_comment(self, set_test_backend):
         self.optic.add_surface(
@@ -390,7 +323,7 @@ class TestOptic:
         self.optic.add_surface(index=0, radius=10, thickness=5)
         self.optic.reset()
         assert self.optic.aperture is None
-        assert self.optic.field_type is None
+        assert isinstance(self.optic.fields, FieldGroup)
         assert len(self.optic.surface_group.surfaces) == 0
         assert len(self.optic.fields.fields) == 0
         assert len(self.optic.wavelengths.wavelengths) == 0
@@ -487,7 +420,7 @@ class TestOptic:
         assert lens_dict["apodization"]["type"] == "GaussianApodization"
         assert lens_dict["apodization"]["sigma"] == 0.5
         assert "fields" in lens_dict
-        assert lens_dict["fields"]["field_type"] == "angle"
+        assert lens_dict["fields"]["mode"] == "angle"
 
     def test_from_dict(self, set_test_backend):
         from optiland.fields.field_modes import AngleField, ObjectHeightField

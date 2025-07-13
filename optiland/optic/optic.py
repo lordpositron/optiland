@@ -18,6 +18,7 @@ from optiland.aberrations import Aberrations
 from optiland.aperture import Aperture
 from optiland.apodization import BaseApodization
 from optiland.fields.field_group import FieldGroup
+from optiland.fields.field_modes import AngleFieldMode
 from optiland.materials.base import BaseMaterial
 from optiland.optic.optic_updater import OpticUpdater
 from optiland.paraxial import Paraxial
@@ -71,7 +72,7 @@ class Optic:
         self.aperture = None
 
         self.surface_group = SurfaceGroup()
-        self.fields = FieldGroup(mode="angle")  # angle is default field mode
+        self.fields = FieldGroup(mode=AngleFieldMode())  # angle is default field mode
         self.wavelengths = WavelengthGroup()
 
         self.paraxial = Paraxial(self)

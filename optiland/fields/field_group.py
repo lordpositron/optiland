@@ -31,8 +31,23 @@ class FieldGroup:
 
     def __init__(self, mode):
         self.fields = []
-        self.mode = mode
+        self._mode = mode
         self.telecentric = False
+
+    @property
+    def mode(self):
+        """BaseFieldMode: field group mode"""
+        return self._mode
+
+    @mode.setter
+    def mode(self, new_mode):
+        """Setter for field mode
+
+        This setter resets the current fields to use the new mode.
+        """
+        for field in self.fields:
+            field.mode = new_mode
+        self._mode = new_mode
 
     @property
     def x_fields(self):
