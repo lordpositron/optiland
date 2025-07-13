@@ -12,9 +12,9 @@ from typing import Union
 import optiland.backend as be
 from optiland.apodization import BaseApodization
 from optiland.fields.field_modes import (
-    AngleField,
-    ImageSpaceField,
-    ObjectHeightField,
+    AngleFieldMode,
+    ImageSpaceFieldMode,
+    ObjectHeightFieldMode,
 )
 from optiland.fields.field_solvers import ParaxialFieldSolver
 from optiland.geometries import Plane, StandardGeometry
@@ -70,9 +70,9 @@ class OpticUpdater:
                           (e.g. object surface for image space strategies).
         """
         if field_type == "object_height":
-            strategy_instance = ObjectHeightField()
+            strategy_instance = ObjectHeightFieldMode()
         elif field_type == "angle":
-            strategy_instance = AngleField()
+            strategy_instance = AngleFieldMode()
         elif field_type in ("paraxial_image_height", "real_image_height"):
             # Determine solver
             if field_type == "paraxial_image_height":
@@ -90,11 +90,11 @@ class OpticUpdater:
                 )
 
             if self.optic.object_surface.is_infinite:
-                base_strategy = AngleField()
+                base_strategy = AngleFieldMode()
             else:
-                base_strategy = ObjectHeightField()
+                base_strategy = ObjectHeightFieldMode()
 
-            strategy_instance = ImageSpaceField(
+            strategy_instance = ImageSpaceFieldMode(
                 solver=solver, base_strategy=base_strategy
             )
         else:

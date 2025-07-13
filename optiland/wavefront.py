@@ -19,7 +19,7 @@ from scipy.interpolate import griddata
 
 import optiland.backend as be
 from optiland.distribution import create_distribution
-from optiland.fields.field_modes import AngleField
+from optiland.fields.field_modes import AngleFieldMode
 from optiland.zernike import ZernikeFit
 
 
@@ -231,7 +231,7 @@ class Wavefront:
         correction = 0
         if not self.optic.field_type:
             pass  # No correction if field type not set
-        elif isinstance(self.optic.field_type, AngleField):
+        elif isinstance(self.optic.field_type, AngleFieldMode):
             Hx, Hy = field
             max_f = self.optic.fields.max_field  # Max field angle in degrees
             x_tilt_angle = max_f * Hx

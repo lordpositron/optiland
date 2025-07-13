@@ -10,7 +10,7 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 
-from .field_modes import ImageSpaceField
+from .field_modes import ImageSpaceFieldMode
 from .utils import override_property
 
 
@@ -60,7 +60,7 @@ class ParaxialFieldSolver(BaseFieldSolver):
 
         # Step 1: Determine Base Field Strategy
         field_type_strategy = optic.field_type
-        if isinstance(field_type_strategy, ImageSpaceField):
+        if isinstance(field_type_strategy, ImageSpaceFieldMode):
             base_object_field_strategy = field_type_strategy.base_strategy
         else:
             base_object_field_strategy = field_type_strategy

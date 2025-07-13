@@ -52,7 +52,7 @@ class BaseFieldMode(ABC):
         pass
 
 
-class ObjectHeightMode(BaseFieldMode):
+class ObjectHeightFieldMode(BaseFieldMode):
     """Field mode for fields defined by object height.
 
     This mode implements field-dependent calculations assuming the field
@@ -211,7 +211,7 @@ class ObjectHeightMode(BaseFieldMode):
                 )
 
 
-class AngleMode(BaseFieldMode):
+class AngleFieldMode(BaseFieldMode):
     """Field mode for fields defined by an angle.
 
     This mode implements field-dependent calculations assuming the field
@@ -389,7 +389,7 @@ class AngleMode(BaseFieldMode):
         pass
 
 
-class ImageSpaceMode(BaseFieldMode):
+class ImageSpaceFieldMode(BaseFieldMode):
     """Field mode for fields defined by image height.
 
     This mode acts as a wrapper, utilizing a specified field solver

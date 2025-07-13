@@ -20,8 +20,8 @@ from optiland.apodization import BaseApodization
 from optiland.fields.field import Field
 from optiland.fields.field_group import FieldGroup
 from optiland.fields.field_modes import (
-    AngleField,
-    ObjectHeightField,
+    AngleFieldMode,
+    ObjectHeightFieldMode,
 )
 from optiland.materials.base import BaseMaterial
 from optiland.optic.optic_updater import OpticUpdater
@@ -530,12 +530,10 @@ class Optic:
         data["wavelengths"]["polarization"] = self.polarization
 
         field_type_str = ""
-        if isinstance(self.field_type, ObjectHeightField):
+        if isinstance(self.field_type, ObjectHeightFieldMode):
             field_type_str = "object_height"
-        elif isinstance(self.field_type, AngleField):
+        elif isinstance(self.field_type, AngleFieldMode):
             field_type_str = "angle"
-        # else: self.field_type might be None if not set.
-        # For serialization, it should ideally be set if fields are meaningful.
 
         data["fields"]["field_type"] = field_type_str
         data["fields"]["object_space_telecentric"] = self.obj_space_telecentric
