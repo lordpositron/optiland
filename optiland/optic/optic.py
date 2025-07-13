@@ -235,34 +235,13 @@ class Optic:
     def set_field_type(self, field_type: str):
         """Set the field definition strategy for the optical system.
 
-        This method takes a string identifier ("object_height" or "angle") and
-        instantiates the corresponding field strategy object. For direct
-        object-space definitions like "object_height" or "angle", it creates
-        `ObjectHeightField` or `AngleField` respectively. For image-space
-        definitions like "paraxial_image_height" or "real_image_height", it
-        composes an `ImageSpaceField` strategy with the appropriate solver
-        (ParaxialFieldSolver or RealFieldSolver) and an underlying object-space
-        strategy (AngleField for infinite conjugate, ObjectHeightField otherwise).
-
-        The instantiated strategy is stored in `self.field_type` and used for
-        all field-dependent calculations. The chosen strategy also validates
-        the current optic state for compatibility.
-
         Args:
             field_type (str): The type of field strategy to use. Valid options are:
                 - "object_height": Defines fields by object height.
                 - "angle": Defines fields by angle (typically from entrance pupil).
                 - "paraxial_image_height": Defines fields by paraxial image height.
-                - "real_image_height": Defines fields by real image height.
-
-        Raises:
-            ValueError: If an invalid field_type string is provided, or if the
-                        chosen strategy's `validate_optic_state` check fails,
-                        or if an image-space strategy cannot determine the
-                        underlying object-space strategy (e.g., object surface
-                        not yet defined).
-            RuntimeError: If components required by the chosen strategy are missing
-                          (e.g. object surface for image space strategies).
+                - "real_image_height": Raises a NotImplementedError, as this is not yet
+                    supported.
         """
         self._updater.set_field_type(field_type)
 

@@ -40,12 +40,34 @@ class OpticUpdater:
     def set_field_type(self, field_type):
         """Set the field type for the optical system.
 
+        This method takes a string identifier ("object_height" or "angle") and
+        instantiates the corresponding field strategy object. For direct
+        object-space definitions like "object_height" or "angle", it creates
+        `ObjectHeightField` or `AngleField` respectively. For image-space
+        definitions like "paraxial_image_height" or "real_image_height", it
+        composes an `ImageSpaceField` strategy with the appropriate solver
+        (ParaxialFieldSolver or RealFieldSolver) and an underlying object-space
+        strategy (AngleField for infinite conjugate, ObjectHeightField otherwise).
+
+        The instantiated strategy is stored in `self.field_type` and used for
+        all field-dependent calculations. The chosen strategy also validates
+        the current optic state for compatibility.
+
         Args:
             field_type (str): The type of field to set. Can be one of:
                 - "object_height": Uses ObjectHeightField strategy.
                 - "angle": Uses AngleField strategy.
                 - "paraxial_image_height": Uses ParaxialFieldSolver with ImageSpaceField
                 - "real_image_height": Not yet implemented, raises NotImplementedError.
+
+        Raises:
+            ValueError: If an invalid field_type string is provided, or if the
+                        chosen strategy's `validate_optic_state` check fails,
+                        or if an image-space strategy cannot determine the
+                        underlying object-space strategy (e.g., object surface
+                        not yet defined).
+            RuntimeError: If components required by the chosen strategy are missing
+                          (e.g. object surface for image space strategies).
         """
         if field_type == "object_height":
             strategy_instance = ObjectHeightField()
