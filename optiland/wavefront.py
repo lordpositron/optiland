@@ -229,9 +229,7 @@ class Wavefront:
     def _correct_tilt(self, field, opd, x=None, y=None):
         """Correct tilt in OPD based on field angle and distribution."""
         correction = 0
-        if not self.optic.field_type:
-            pass  # No correction if field type not set
-        elif isinstance(self.optic.field_type, AngleFieldMode):
+        if isinstance(self.optic.fields.mode, AngleFieldMode):
             Hx, Hy = field
             max_f = self.optic.fields.max_field  # Max field angle in degrees
             x_tilt_angle = max_f * Hx

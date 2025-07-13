@@ -42,15 +42,13 @@ class ParaxialRayTracer:
 
         y1 = Py * EPD / 2  # Height at the entrance pupil for this pupil coordinate
 
-        if not self.optic.field_type:
-            raise RuntimeError("Optic.field_type strategy is not set.")
         y0, z0 = self.optic.fields.mode.get_paraxial_object_position(
             self.optic, Hy, y1, EPL
         )
 
         # Calculate initial ray angle u0.
         delta_z = EPL - z0
-        if be.any(be.isclose(delta_z, 0.0)):
+        if be.any(be.isclose(delta_z, be.array(0.0))):
             if self.optic.object_surface.is_infinite:
                 # For an infinite object, u0 is typically 0 for rays starting
                 # parallel to the axis (e.g., marginal ray definition).
