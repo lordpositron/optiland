@@ -78,7 +78,6 @@ class OpticUpdater:
             )
 
         self.optic.fields.mode = field_mode_instance
-        print(field_mode_instance)
         field_mode_instance.validate_optic_state(self.optic)
 
     def set_radius(self, value, surface_number):

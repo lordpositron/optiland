@@ -63,7 +63,7 @@ class BaseFieldMode(ABC):
             dict: The dictionary representation of the geometry.
 
         """
-        return {"type": self.__class__.__name__, "cs": self.cs.to_dict()}
+        return {"type": self.__class__.__name__}
 
     @classmethod
     def from_dict(cls, data):
@@ -83,7 +83,7 @@ class BaseFieldMode(ABC):
             raise ValueError(f"Unknown field mode type: {field_mode_type}")
 
         # Delegate to the correct subclass's from_dict
-        return cls._registry[field_mode_type].from_dict(data)
+        return cls._registry[field_mode_type]()
 
 
 class ObjectHeightFieldMode(BaseFieldMode):

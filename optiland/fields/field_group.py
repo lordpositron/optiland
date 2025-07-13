@@ -9,6 +9,7 @@ Kramer Harrison, 2025
 import optiland.backend as be
 
 from .field import Field
+from .field_modes import BaseFieldMode
 
 
 class FieldGroup:
@@ -175,7 +176,7 @@ class FieldGroup:
         """
         return {
             "fields": [field.to_dict() for field in self.fields],
-            "mode": self.mode,
+            "mode": self.mode.to_dict(),
             "telecentric": self.telecentric,
         }
 
@@ -190,8 +191,9 @@ class FieldGroup:
             FieldGroup: A field group object created from the dictionary.
 
         """
-        field_group = cls(mode=data["mode"])
+        field_mode = BaseFieldMode.from_dict(data["mode"])
+        field_group = cls(mode=field_mode)
         for field_dict in data["fields"]:
-            field_group.add_field(Field.from_dict(field_dict))
+            field_group.add_field(**field_dict)
         field_group.set_telecentric(data["telecentric"])
         return field_group
