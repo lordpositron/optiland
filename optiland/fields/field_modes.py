@@ -13,6 +13,8 @@ from abc import ABC, abstractmethod
 
 import optiland.backend as be
 
+from .utils import override_property
+
 
 class BaseFieldMode(ABC):
     """
@@ -449,56 +451,23 @@ class ImageSpaceMode(BaseFieldMode):
             NotImplementedError: If Hx is non-zero, as image space fields are
                 currently assumed to be defined only in the y-dimension.
         """
-        if not be.isclose(Hx, 0.0):
-            raise NotImplementedError(
-                "ImageSpaceMode currently only supports Hy (1D image height)."
-            )
-
-        target_image_height = optic.fields.max_field * Hy
+        norm = be.sqrt(Hx**2 + Hy**2)
+        target_image_height = optic.fields.max_field * norm
 
         # Use the solver to find the object-space field value (e.g., angle or height)
         # that produces the target_image_height.
-        # The solver typically needs the optic and the target image height.
         equivalent_object_field = self.solver.solve(optic, target_image_height)
 
-        # Store original max_field and temporarily set it for the base mode call.
-        original_max_field = optic.fields.max_field
-        # original_max_y_field was here, removed as unused in this method.
+        # Temporarily set max_field to the equivalent object-space field value
+        with override_property(optic.fields, "max_field", equivalent_object_field):
+            base_Hx = Hx / norm if norm != 0 else 0.0
+            base_Hy = Hy / norm if norm != 0 else 0.0
 
-        try:
-            # The task specifies using the equivalent_object_field as the temporary
-            # max_field for the base_mode, and calling the base_mode
-            # with a normalized field coordinate of 1.0.
-
-            # Interpretation:
-            # 1. `solver.solve(optic, target_image_height)` returns the actual
-            #    object-space field value (e.g., -5 degrees or 10mm). This value
-            #    can be positive or negative.
-            # 2. `optic.fields.max_field` is temporarily set to this exact
-            #    `equivalent_object_field` value.
-            # 3. `base_mode.get_ray_origins` is called with `Hy = 1.0`.
-            #    The base mode will then calculate `max_field * Hy`, which
-            #    effectively becomes `equivalent_object_field * 1.0`, yielding
-            #    the desired object-space field parameter for ray generation.
-            #    This works if base modes correctly use `max_field * Hy`
-            #    (e.g., AngleMode: `max_field_angle_deg = max_field * Hy`;
-            #    ObjectHeightMode: `field_y = max_field * Hy`).
-            #    This seems to be the case from reviewing their implementations.
-
-            optic.fields.max_field = equivalent_object_field
-
-            # For 2D fields (if supported in future), Hx would also be handled.
-            # Currently, Hx is 0 for image space fields as per NotImplementedError.
-            base_Hx = 0.0
-            # As per instruction "using a normalized field coordinate of 1.0"
-            base_Hy = 1.0
-
-            return self.base_mode.get_ray_origins(
+            x0, y0, z0 = self.base_mode.get_ray_origins(
                 optic, base_Hx, base_Hy, Px, Py, vx, vy
             )
-        finally:
-            # Restore original max_field.
-            optic.fields.max_field = original_max_field
+
+        return x0, y0, z0
 
     def get_paraxial_object_position(self, optic, Hy, y1, EPL):
         """Calculate paraxial object position for image height fields.
@@ -522,29 +491,19 @@ class ImageSpaceMode(BaseFieldMode):
         target_image_height = optic.fields.max_field * Hy
         equivalent_object_field = self.solver.solve(optic, target_image_height)
 
-        original_max_field = optic.fields.max_field
-        try:
-            optic.fields.max_field = equivalent_object_field
-            # Base mode called with Hy_norm=1.0
+        # Temporarily set max_field to the equivalent object-space field value
+        with override_property(optic.fields, "max_field", equivalent_object_field):
             base_Hy = 1.0
-            return self.base_mode.get_paraxial_object_position(optic, base_Hy, y1, EPL)
-        finally:
-            optic.fields.max_field = original_max_field
+            y0, z0 = self.base_mode.get_paraxial_object_position(
+                optic, base_Hy, y1, EPL
+            )
+
+        return y0, z0
 
     def get_chief_ray_start_params(
         self, optic, chief_ray_y_at_stop, chief_ray_u_at_stop
     ):
         """Calculate chief ray start parameters for image height fields.
-
-        This method also delegates to the base_mode. However, the concept
-        of "max_field" for chief ray calculation needs careful handling.
-        The base mode's `get_chief_ray_start_params` typically uses
-        `optic.fields.max_y_field`. We need to ensure this reflects the
-        object-space equivalent of the *maximum defined image height* for
-        the optic.
-
-        The `equivalent_object_field` determined by the solver should be
-        for the *actual* `optic.fields.max_field` (which defines max image height).
 
         Args:
             optic (Optic): The optical system instance.
@@ -554,51 +513,17 @@ class ImageSpaceMode(BaseFieldMode):
         Returns:
             float: The adjusted starting slope `u1` for the chief ray trace.
         """
-        # For ImageSpaceMode, `optic.fields.max_field` (or `max_y_field` if distinct)
-        # defines the maximum *image height* for the system.
-        # The base mode's `get_chief_ray_start_params` uses
-        # `optic.fields.max_y_field` to refer to the maximum *object-space*
-        # field (e.g., max angle or max object height).
-        #
-        # Therefore, we need to:
-        # 1. Get the maximum defined image height for the optic.
-        #    Let's assume `optic.fields.max_y_field` is used for this,
-        #    as it's the one base modes query for their max object field.
-        #    If `max_y_field` is not specifically set for image height, it
-        #    would default to `max_field`.
-        # 2. Use the solver to find the object-space field value that
-        #    corresponds to this maximum image height.
-        # 3. Temporarily set `optic.fields.max_y_field` to this *absolute*
-        #    equivalent object-space field value before calling the
-        #    base_mode's method. Base modes expect a positive extent.
-
-        # Use max_y_field as it's what base modes (Angle, ObjectHeight) query.
-        # This `max_y_field` for an ImageSpaceMode optic defines the max image height.
         max_defined_image_height = optic.fields.max_y_field
 
         # Find object-space field equivalent to this max image height.
-        # The solver should return the actual field value (can be signed).
-        equivalent_object_field_for_max_image = self.solver.solve(
-            optic, max_defined_image_height
-        )
+        eq_field_for_max_image = self.solver.solve(optic, max_defined_image_height)
 
-        # Store original values to restore them.
-        original_max_y_field = optic.fields.max_y_field
-        # Note: `optic.fields.max_field` is not directly used by base mode's
-        # `get_chief_ray_start_params`, so we only need to manage `max_y_field`.
-
-        try:
-            # Base modes expect `optic.fields.max_y_field` to be a positive
-            # value representing the maximum extent of the object-space field.
-            optic.fields.max_y_field = be.fabs(equivalent_object_field_for_max_image)
-
-            return self.base_mode.get_chief_ray_start_params(
+        with override_property(optic.fields, "max_y_field", eq_field_for_max_image):
+            u1 = self.base_mode.get_chief_ray_start_params(
                 optic, chief_ray_y_at_stop, chief_ray_u_at_stop
             )
-        finally:
-            # Restore original max_y_field.
-            optic.fields.max_y_field = original_max_y_field
-            # optic.fields.max_field remains untouched if it wasn't modified.
+
+        return u1
 
     def validate_optic_state(self, optic):
         """Validate if the optic's state is compatible with ImageSpaceMode.
@@ -616,17 +541,8 @@ class ImageSpaceMode(BaseFieldMode):
         Raises:
             ValueError: If the optic's configuration is incompatible.
         """
-        # First, allow the base mode to validate itself.
         if self.base_mode:
             self.base_mode.validate_optic_state(optic)
-
-        # Solver validation:
-        # Solvers might have implicit requirements (e.g., ParaxialFieldSolver
-        # needs a valid paraxial system). These are typically checked when
-        # solver methods are called or paraxial properties are accessed.
-        # No explicit, additional validation call to the solver is made here,
-        # assuming failures will be caught during `solver.solve()`.
-        pass
 
     def __repr__(self):
         """Return a string representation of the ImageSpaceMode."""
