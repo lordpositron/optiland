@@ -390,7 +390,7 @@ class Paraxial:
         )
 
         if not self.optic.field_type:
-            raise RuntimeError("Optic.field_type strategy is not set.")
+            raise RuntimeError("Optic.field_type is not set.")
 
         u1_chief_start = self.optic.field_type.get_chief_ray_start_params(
             self.optic, y_rev[-1], u_rev[-1]
