@@ -420,11 +420,9 @@ class TestOptic:
         assert lens_dict["apodization"]["type"] == "GaussianApodization"
         assert lens_dict["apodization"]["sigma"] == 0.5
         assert "fields" in lens_dict
-        assert lens_dict["fields"]["mode"] == "angle"
+        assert lens_dict["fields"]["mode"]['type'] == 'AngleFieldMode'
 
     def test_from_dict(self, set_test_backend):
-        from optiland.fields.field_modes import AngleField, ObjectHeightField
-
         lens = HeliarLens()  # field_type "angle"
         lens.set_apodization(GaussianApodization(sigma=0.5))
         basic_dict = lens.to_dict()
@@ -432,50 +430,27 @@ class TestOptic:
         new_optic = Optic.from_dict(basic_dict)
         assert isinstance(new_optic, Optic)
         assert isinstance(new_optic.apodization, GaussianApodization)
-        assert isinstance(new_optic.field_type, AngleField)
+        assert isinstance(new_optic.fields.mode, AngleFieldMode)
 
         basic_dict_no_apod = lens.to_dict()
         basic_dict_no_apod.pop("apodization", None)
         new_optic_no_apod = Optic.from_dict(basic_dict_no_apod)
         assert new_optic_no_apod.apodization is None
-        assert isinstance(new_optic_no_apod.field_type, AngleField)
+        assert isinstance(new_optic_no_apod.fields.mode, AngleFieldMode)
 
         finite_lens = singlet_finite_object()  # Default field_type "angle"
         # Change to object_height for testing this case
         finite_lens.set_field_type("object_height")
         finite_dict_obj_height = finite_lens.to_dict()
-        assert finite_dict_obj_height["fields"]["field_type"] == "object_height"
+        assert finite_dict_obj_height["fields"]["mode"]["type"] == "ObjectHeightFieldMode"
 
         new_optic_obj_height = Optic.from_dict(finite_dict_obj_height)
-        assert isinstance(new_optic_obj_height.field_type, ObjectHeightField)
-
-        dict_missing_ft = lens.to_dict()
-        dict_missing_ft["fields"].pop("field_type", None)
-        # Optic.from_dict should raise ValueError if fields are present
-        # but field_type string is missing.
-        if new_optic.fields.fields:  # Heliar lens has fields
-            with pytest.raises(ValueError) as excinfo:
-                Optic.from_dict(dict_missing_ft)
-            assert "missing in dictionary but fields are present" in str(excinfo.value)
-
-        dict_empty_ft = lens.to_dict()
-        dict_empty_ft["fields"]["field_type"] = ""
-        if new_optic.fields.fields:
-            with pytest.raises(ValueError) as excinfo:
-                Optic.from_dict(dict_empty_ft)
-            assert "missing in dictionary but fields are present" in str(excinfo.value)
-
-        empty_optic = Optic()
-        empty_dict = empty_optic.to_dict()  # field_type will be ""
-        empty_dict["fields"]["field_type"] = ""
-        deserialized_empty_optic = Optic.from_dict(empty_dict)
-        assert deserialized_empty_optic.field_type is None
-        assert not deserialized_empty_optic.fields.fields
+        assert isinstance(new_optic_obj_height.fields.mode, ObjectHeightFieldMode)
 
     def test_set_invalid_field_type_string(self, set_test_backend):
         with pytest.raises(ValueError) as excinfo:
             self.optic.set_field_type("invalid_field_type_name")
-        assert "Invalid field_type string" in str(excinfo.value)
+        assert "Invalid field type specified" in str(excinfo.value)
 
     def test_validate_optic_state_object_height_infinite_obj(self, set_test_backend):
         self.optic.add_surface(index=0, thickness=be.inf)  # Infinite object
@@ -488,37 +463,34 @@ class TestOptic:
     def test_validate_optic_state_angle_telecentric(self, set_test_backend):
         self.optic.add_surface(index=0, thickness=10)  # Finite object
         self.optic.add_surface(index=1, thickness=0)  # Image surface
-        self.optic.obj_space_telecentric = True
+        self.optic.fields.telecentric = True
         with pytest.raises(ValueError) as excinfo:
             self.optic.set_field_type("angle")
-        err_msg = 'Field type cannot be "angle" for telecentric object space.'
+        err_msg = 'Field type "angle" is invalid for telecentric object space.'
         assert err_msg in str(excinfo.value)
-        self.optic.obj_space_telecentric = False
+        self.optic.fields.telecentric = False
 
     def test_validate_optic_state_object_height_telecentric_epd(self, set_test_backend):
         self.optic.add_surface(index=0, thickness=10)  # Finite object
         self.optic.add_surface(index=1, thickness=0)  # Image surface
-        self.optic.obj_space_telecentric = True
+        self.optic.fields.telecentric = True
         self.optic.set_aperture("EPD", 10)
         with pytest.raises(ValueError) as excinfo:
             self.optic.set_field_type("object_height")
-        err_msg = 'Aperture type cannot be "EPD" for telecentric object space'
+        err_msg = 'Aperture type "EPD" is invalid for telecentric object space'
         assert err_msg in str(excinfo.value)
-        self.optic.obj_space_telecentric = False
+        self.optic.fields.telecentric = False
 
     def test_validate_optic_state_object_height_telecentric_fno(self, set_test_backend):
         self.optic.add_surface(index=0, thickness=10)  # Finite object
         self.optic.add_surface(index=1, thickness=0)  # Image surface
-        self.optic.obj_space_telecentric = True
+        self.optic.fields.telecentric = True
         self.optic.set_aperture("imageFNO", 5)
         with pytest.raises(ValueError) as excinfo:
             self.optic.set_field_type("object_height")
-        err_msg = 'Aperture type cannot be "imageFNO" for telecentric object space'
+        err_msg = 'Aperture type "imageFNO" is invalid for telecentric object space'
         assert err_msg in str(excinfo.value)
-        self.optic.obj_space_telecentric = False
-
-    # Test successful setting of field types is covered by
-    # the modified test_set_field_type.
+        self.optic.fields.telecentric = False
 
     def test_no_stop(self, set_test_backend):
         # Ensure optic has surfaces but none are stop

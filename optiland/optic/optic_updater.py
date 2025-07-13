@@ -71,11 +71,11 @@ class OpticUpdater:
             "real_image_height": RealImageHeightFieldMode,
         }
         field_mode_class = registry.get(field_type)
-        field_mode_instance = field_mode_class()
-        if not field_mode_instance:
+        if field_mode_class is None:
             raise ValueError(
                 f"Invalid field type specified. Must be in {registry.keys()}"
             )
+        field_mode_instance = field_mode_class()
 
         self.optic.fields.mode = field_mode_instance
         field_mode_instance.validate_optic_state(self.optic)
