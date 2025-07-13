@@ -17,6 +17,8 @@ class FieldGroup:
     Attributes:
         fields (list): A list of fields in the group.
         telecentric (bool): Whether the system is telecentric in object space.
+        mode (BaseFieldMode): The mode for the field group, e.g., angle, object height,
+            paraxial image height, etc.
 
     Methods:
         get_vig_factor(Hx, Hy): Returns the vignetting factors for given Hx
@@ -27,8 +29,9 @@ class FieldGroup:
 
     """
 
-    def __init__(self):
+    def __init__(self, mode):
         self.fields = []
+        self.mode = mode
         self.telecentric = False
 
     @property
@@ -122,13 +125,20 @@ class FieldGroup:
             for x, y in zip(self.x_fields, self.y_fields)
         ]
 
-    def add_field(self, field):
+    def add_field(self, y, x=0.0, vx=0.0, vy=0.0):
         """Add a field to the list of fields.
 
         Args:
-            field: The field to be added.
+            y (float): The y-coordinate of the field.
+            x (float, optional): The x-coordinate of the field.
+                Defaults to 0.0.
+            vx (float, optional): The x-component of the field's vignetting
+                factor. Defaults to 0.0.
+            vy (float, optional): The y-component of the field's vignetting
+                factor. Defaults to 0.0.
 
         """
+        field = Field(self.mode, x, y, vx, vy)
         self.fields.append(field)
 
     def get_field(self, field_number):
@@ -165,6 +175,7 @@ class FieldGroup:
         """
         return {
             "fields": [field.to_dict() for field in self.fields],
+            "mode": self.mode,
             "telecentric": self.telecentric,
         }
 
@@ -179,7 +190,7 @@ class FieldGroup:
             FieldGroup: A field group object created from the dictionary.
 
         """
-        field_group = cls()
+        field_group = cls(mode=data["mode"])
         for field_dict in data["fields"]:
             field_group.add_field(Field.from_dict(field_dict))
         field_group.set_telecentric(data["telecentric"])

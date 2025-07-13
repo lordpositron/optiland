@@ -17,12 +17,7 @@ from typing import Union
 from optiland.aberrations import Aberrations
 from optiland.aperture import Aperture
 from optiland.apodization import BaseApodization
-from optiland.fields.field import Field
 from optiland.fields.field_group import FieldGroup
-from optiland.fields.field_modes import (
-    AngleFieldMode,
-    ObjectHeightFieldMode,
-)
 from optiland.materials.base import BaseMaterial
 from optiland.optic.optic_updater import OpticUpdater
 from optiland.paraxial import Paraxial
@@ -41,9 +36,6 @@ class Optic:
     Attributes:
         name (str, optional): An optional name for the optical system.
         aperture (Aperture | None): The aperture of the optical system.
-        field_type (BaseFieldStrategy | None): The field strategy instance defining
-            how field-dependent calculations are handled (e.g., based on object
-            height or angle). Initially None, set via `set_field_type`.
         surface_group (SurfaceGroup): The group of surfaces in the optical
             system.
         fields (FieldGroup): The group of fields in the optical system.
@@ -77,7 +69,6 @@ class Optic:
     def _initialize_attributes(self):
         """Reset the optical system to its initial state."""
         self.aperture = None
-        self.field_type = None
 
         self.surface_group = SurfaceGroup()
         self.fields = FieldGroup()
@@ -92,7 +83,6 @@ class Optic:
         self.apodization = None
         self.pickups = PickupManager(self)
         self.solves = SolveManager(self)
-        self.obj_space_telecentric = False
         self._updater = OpticUpdater(self)
 
     def __add__(self, other):
@@ -194,21 +184,8 @@ class Optic:
             vy (float, optional): The y-component of the field's vignetting
                 factor. Defaults to 0.0.
 
-        Raises:
-            RuntimeError: If `Optic.field_type` has not been set via
-                `set_field_type()` prior to calling this method.
-            TypeError: If `Optic.field_type` is not a recognized strategy instance.
-
         """
-        if not self.field_type:
-            raise RuntimeError(
-                "Optic.field_type must be set before adding fields. "
-                "Call Optic.set_field_type() first."
-            )
-
-        field_type_str = self.field_type.type_ if self.field_type else None
-        new_field = Field(field_type_str, x, y, vx, vy)
-        self.fields.add_field(new_field)
+        self.fields.add_field(x, y, vx, vy)
 
     def add_wavelength(self, value, is_primary=False, unit="um"):
         """Add a wavelength to the optical system.
@@ -528,15 +505,6 @@ class Optic:
         }
 
         data["wavelengths"]["polarization"] = self.polarization
-
-        field_type_str = ""
-        if isinstance(self.field_type, ObjectHeightFieldMode):
-            field_type_str = "object_height"
-        elif isinstance(self.field_type, AngleFieldMode):
-            field_type_str = "angle"
-
-        data["fields"]["field_type"] = field_type_str
-        data["fields"]["object_space_telecentric"] = self.obj_space_telecentric
         return data
 
     @classmethod
@@ -564,18 +532,6 @@ class Optic:
         optic.solves = SolveManager.from_dict(optic, data["solves"])
 
         optic.polarization = data["wavelengths"]["polarization"]
-
-        field_type_str_from_dict = data["fields"].get("field_type", None)
-        if field_type_str_from_dict:  # Ensure it's not empty or None
-            optic.set_field_type(field_type_str_from_dict)
-        else:
-            if optic.fields.fields:
-                raise ValueError(
-                    "Field type string missing in dictionary but fields are present."
-                )
-
-        optic.obj_space_telecentric = data["fields"]["object_space_telecentric"]
-
         optic.paraxial = Paraxial(optic)
         optic.aberrations = Aberrations(optic)
         optic.ray_generator = RayGenerator(optic)

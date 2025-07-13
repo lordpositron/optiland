@@ -13,10 +13,10 @@ import optiland.backend as be
 from optiland.apodization import BaseApodization
 from optiland.fields.field_modes import (
     AngleFieldMode,
-    ImageSpaceFieldMode,
     ObjectHeightFieldMode,
+    ParaxialImageHeightFieldMode,
+    RealImageHeightFieldMode,
 )
-from optiland.fields.field_solvers import ParaxialFieldSolver
 from optiland.geometries import Plane, StandardGeometry
 from optiland.materials import IdealMaterial
 from optiland.materials.base import BaseMaterial
@@ -62,58 +62,22 @@ class OpticUpdater:
                 - "real_image_height": Not yet implemented, raises NotImplementedError.
 
         Raises:
-            ValueError: If an invalid field_type string is provided, or if the
-                        chosen field_mode's `validate_optic_state` check fails,
-                        or if an image-space field_mode cannot determine the
-                        underlying object-space field_mode (e.g., object surface
-                        not yet defined).
-            RuntimeError: If components required by the chosen field_mode are missing
-                          (e.g. object surface for image space strategies).
+            ValueError: If an invalid field_type string is provided.
         """
-        if field_type == "object_height":
-            field_mode_instance = ObjectHeightFieldMode()
-        elif field_type == "angle":
-            field_mode_instance = AngleFieldMode()
-        elif field_type in ("paraxial_image_height", "real_image_height"):
-            # Determine solver
-            if field_type == "paraxial_image_height":
-                solver = ParaxialFieldSolver()
-            else:  # real_image_height
-                raise NotImplementedError(
-                    "Real image height field type is not yet implemented."
-                )
-
-            # Determine underlying base field_mode
-            if self.optic.object_surface is None:
-                raise RuntimeError(
-                    f"Cannot set field type to '{field_type}' before an "
-                    "object surface is defined. Needed for infinite conjugate check."
-                )
-
-            if self.optic.object_surface.is_infinite:
-                base_mode = AngleFieldMode()
-            else:
-                base_mode = ObjectHeightFieldMode()
-
-            field_mode_instance = ImageSpaceFieldMode(
-                solver=solver, base_mode=base_mode
+        registry = {
+            "angle": AngleFieldMode(),
+            "object_height": ObjectHeightFieldMode(),
+            "paraxial_image_height": ParaxialImageHeightFieldMode(),
+            "real_image_height": RealImageHeightFieldMode(),
+        }
+        field_mode_instance = registry.get(field_type)
+        if not field_mode_instance:
+            raise ValueError(
+                f"Invalid field type specified. Must be in {registry.keys()}"
             )
-        else:
-            valid_types = (
-                '"object_height", "angle", "paraxial_image_height", '
-                'or "real_image_height"'
-            )
-            error_msg = (
-                f"Invalid field_type string: '{field_type}'. "
-                f"Must be one of {valid_types}."
-            )
-            raise ValueError(error_msg)
 
-        # Validate optic state with the new field_mode before assigning
-        # This also validates the base_mode for ImageSpaceField.
         field_mode_instance.validate_optic_state(self.optic)
-
-        self.optic.field_type = field_mode_instance
+        self.optic.fields.mode = field_mode_instance
 
     def set_radius(self, value, surface_number):
         """Set the radius of curvature of a surface.
