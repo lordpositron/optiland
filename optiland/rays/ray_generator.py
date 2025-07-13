@@ -40,11 +40,11 @@ class RayGenerator:
         vxf, vyf = self.optic.fields.get_vig_factor(Hx, Hy)
         vx = 1 - be.array(vxf)
         vy = 1 - be.array(vyf)
-        x0, y0, z0 = self.optic.field_type.get_ray_origins(
+        x0, y0, z0 = self.optic.fields.mode.get_ray_origins(
             self.optic, Hx, Hy, Px, Py, vx, vy
         )
 
-        if self.optic.obj_space_telecentric:
+        if self.optic.fields.telecentric:
             sin = self.optic.aperture.value
             z = be.sqrt(1 - sin**2) / sin + z0
             z1 = be.full_like(Px, z)

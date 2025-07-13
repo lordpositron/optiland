@@ -71,7 +71,7 @@ class Optic:
         self.aperture = None
 
         self.surface_group = SurfaceGroup()
-        self.fields = FieldGroup()
+        self.fields = FieldGroup(mode="angle")  # angle is default field mode
         self.wavelengths = WavelengthGroup()
 
         self.paraxial = Paraxial(self)
@@ -185,6 +185,8 @@ class Optic:
                 factor. Defaults to 0.0.
 
         """
+        if not self.fields:
+            raise ValueError("Must first specify field type via `set_field_type`.")
         self.fields.add_field(x, y, vx, vy)
 
     def add_wavelength(self, value, is_primary=False, unit="um"):
@@ -496,7 +498,7 @@ class Optic:
         data = {
             "version": 1.0,
             "aperture": self.aperture.to_dict() if self.aperture else None,
-            "fields": self.fields.to_dict(),
+            "fields": self.fields.to_dict() if self.fields else None,
             "wavelengths": self.wavelengths.to_dict(),
             "apodization": self.apodization.to_dict() if self.apodization else None,
             "pickups": self.pickups.to_dict(),

@@ -65,19 +65,20 @@ class OpticUpdater:
             ValueError: If an invalid field_type string is provided.
         """
         registry = {
-            "angle": AngleFieldMode(),
-            "object_height": ObjectHeightFieldMode(),
-            "paraxial_image_height": ParaxialImageHeightFieldMode(),
-            "real_image_height": RealImageHeightFieldMode(),
+            "angle": AngleFieldMode,
+            "object_height": ObjectHeightFieldMode,
+            "paraxial_image_height": ParaxialImageHeightFieldMode,
+            "real_image_height": RealImageHeightFieldMode,
         }
-        field_mode_instance = registry.get(field_type)
+        field_mode_class = registry.get(field_type)
+        field_mode_instance = field_mode_class()
         if not field_mode_instance:
             raise ValueError(
                 f"Invalid field type specified. Must be in {registry.keys()}"
             )
 
-        field_mode_instance.validate_optic_state(self.optic)
         self.optic.fields.mode = field_mode_instance
+        field_mode_instance.validate_optic_state(self.optic)
 
     def set_radius(self, value, surface_number):
         """Set the radius of curvature of a surface.

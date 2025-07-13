@@ -13,8 +13,6 @@ from abc import ABC, abstractmethod
 
 import optiland.backend as be
 
-from .utils import override_property
-
 
 class BaseFieldMode(ABC):
     """
@@ -199,7 +197,7 @@ class ObjectHeightFieldMode(BaseFieldMode):
             raise ValueError(
                 'Field type "object_height" is invalid for an object at infinity.'
             )
-        if optic.obj_space_telecentric:
+        if optic.fields.telecentric:
             if optic.aperture.ap_type == "EPD":
                 raise ValueError(
                     'Aperture type "EPD" is invalid for telecentric object space '
@@ -261,7 +259,7 @@ class AngleFieldMode(BaseFieldMode):
         field_y_angle_deg = max_field * Hy
 
         if obj.is_infinite:
-            if optic.obj_space_telecentric:
+            if optic.fields.telecentric:
                 # Also caught by validate_optic_state
                 raise ValueError(
                     "Object space cannot be telecentric for an object at infinity."
@@ -384,176 +382,17 @@ class AngleFieldMode(BaseFieldMode):
             ValueError: If the optic's configuration is incompatible.
 
         """
-        if optic.obj_space_telecentric:
+        if optic.fields.telecentric:
             raise ValueError(
                 'Field type "angle" is invalid for telecentric object space.'
             )
         pass
 
 
-class ImageSpaceFieldMode(BaseFieldMode):
-    """Field mode for fields defined by image height.
+class ParaxialImageHeightFieldMode:
+    pass
 
-    This mode acts as a wrapper, utilizing a specified field solver
-    (paraxial or real) and an underlying object-space field mode
-    (e.g., AngleMode, ObjectHeightMode). It calculates the object-space
-    field parameter (e.g., angle or height) that corresponds to a desired
-    image height, and then delegates the ray generation to the underlying
-    object-space mode.
 
-    Attributes:
-        solver (BaseFieldSolver): The solver instance used to find the
-            object-space field equivalent for a given image height.
-        base_mode (BaseFieldMode): The underlying object-space
-            mode used for actual ray calculations.
-    """
-
-    def __init__(self, solver, base_mode):
-        """Initializes an ImageSpaceMode.
-
-        Args:
-            solver (BaseFieldSolver): An instance of a field solver (e.g.,
-                ParaxialFieldSolver, RealFieldSolver) used to determine the
-                object-space field value that produces the desired image height.
-            base_mode (BaseFieldMode): An instance of an object-space
-                field mode (e.g., AngleMode, ObjectHeightMode) that will
-                be used to generate rays once the equivalent object-space field
-                is known.
-        """
-        self.solver = solver
-        self.base_mode = base_mode
-
-    @property
-    def type_(self):
-        """Returns the type of this field mode."""
-        return self.solver.type_
-
-    def get_ray_origins(self, optic, Hx, Hy, Px, Py, vx, vy):
-        """Calculate ray origin coordinates for image height fields.
-
-        This method first calculates the target image height. Then, it uses the
-        provided solver to find the equivalent object-space field (e.g., angle
-        or height) that would produce this target image height. Finally, it
-        delegates the ray origin calculation to the underlying base_mode,
-        temporarily setting the optic's max_field to this equivalent
-        object-space field value and using a normalized field input of 1.0.
-
-        Args:
-            optic (Optic): The optical system instance.
-            Hx (float): Normalized x-coordinate of the field point. This is
-                ignored as image height is typically 1D (y-dimension).
-                The solver will operate on Hy.
-            Hy (float): Normalized y-coordinate of the field point, used to
-                determine the target image height.
-            Px (float or be.ndarray): Normalized x-coordinate(s) on the pupil.
-            Py (float or be.ndarray): Normalized y-coordinate(s) on the pupil.
-            vx (float): Vignetting factor in the x-direction.
-            vy (float): Vignetting factor in the y-direction.
-
-        Returns:
-            tuple[be.ndarray, be.ndarray, be.ndarray]: A tuple (x0, y0, z0)
-            representing the ray origin coordinates.
-
-        Raises:
-            NotImplementedError: If Hx is non-zero, as image space fields are
-                currently assumed to be defined only in the y-dimension.
-        """
-        norm = be.sqrt(Hx**2 + Hy**2)
-        target_image_height = optic.fields.max_field * norm
-
-        # Use the solver to find the object-space field value (e.g., angle or height)
-        # that produces the target_image_height.
-        equivalent_object_field = self.solver.solve(optic, target_image_height)
-
-        # Temporarily set max_field to the equivalent object-space field value
-        with override_property(optic.fields, "max_field", equivalent_object_field):
-            base_Hx = Hx / norm if norm != 0 else 0.0
-            base_Hy = Hy / norm if norm != 0 else 0.0
-
-            x0, y0, z0 = self.base_mode.get_ray_origins(
-                optic, base_Hx, base_Hy, Px, Py, vx, vy
-            )
-
-        return x0, y0, z0
-
-    def get_paraxial_object_position(self, optic, Hy, y1, EPL):
-        """Calculate paraxial object position for image height fields.
-
-        This method follows a similar pattern to get_ray_origins:
-        1. Calculate target image height.
-        2. Use the solver to find the equivalent object-space field value.
-        3. Delegate to the base_mode's get_paraxial_object_position,
-           temporarily setting optic's max_field to the equivalent value and
-           using a normalized field input of 1.0.
-
-        Args:
-            optic (Optic): The optical system instance.
-            Hy (float): Normalized y-coordinate of the field point.
-            y1 (be.ndarray): Ray height(s) at the entrance pupil.
-            EPL (float): Entrance Pupil Location (axial position).
-
-        Returns:
-            tuple[be.ndarray, be.ndarray]: Paraxial object coordinates (y0, z0).
-        """
-        target_image_height = optic.fields.max_field * Hy
-        equivalent_object_field = self.solver.solve(optic, target_image_height)
-
-        # Temporarily set max_field to the equivalent object-space field value
-        with override_property(optic.fields, "max_field", equivalent_object_field):
-            base_Hy = 1.0
-            y0, z0 = self.base_mode.get_paraxial_object_position(
-                optic, base_Hy, y1, EPL
-            )
-
-        return y0, z0
-
-    def get_chief_ray_start_params(
-        self, optic, chief_ray_y_at_stop, chief_ray_u_at_stop
-    ):
-        """Calculate chief ray start parameters for image height fields.
-
-        Args:
-            optic (Optic): The optical system instance.
-            chief_ray_y_at_stop (float): Paraxial ray height at the initial plane.
-            chief_ray_u_at_stop (float): Paraxial ray slope at the initial plane.
-
-        Returns:
-            float: The adjusted starting slope `u1` for the chief ray trace.
-        """
-        max_defined_image_height = optic.fields.max_y_field
-
-        # Find object-space field equivalent to this max image height.
-        eq_field_for_max_image = self.solver.solve(optic, max_defined_image_height)
-
-        with override_property(optic.fields, "max_y_field", eq_field_for_max_image):
-            u1 = self.base_mode.get_chief_ray_start_params(
-                optic, chief_ray_y_at_stop, chief_ray_u_at_stop
-            )
-
-        return u1
-
-    def validate_optic_state(self, optic):
-        """Validate if the optic's state is compatible with ImageSpaceMode.
-
-        This primarily delegates validation to the underlying base_mode.
-        The ImageSpaceMode wrapper itself imposes few additional constraints
-        beyond those of its components (solver and base_mode).
-
-        The solver might have its own validation (e.g., requiring computable
-        paraxial properties).
-
-        Args:
-            optic (Optic): The optical system instance to validate.
-
-        Raises:
-            ValueError: If the optic's configuration is incompatible.
-        """
-        if self.base_mode:
-            self.base_mode.validate_optic_state(optic)
-
-    def __repr__(self):
-        """Return a string representation of the ImageSpaceMode."""
-        return (
-            f"{self.__class__.__name__}("
-            f"solver={self.solver!r}, base_mode={self.base_mode!r})"
-        )
+class RealImageHeightFieldMode:
+    def __init__(self):
+        raise NotImplementedError("Real image height field mode not yet implemented.")
