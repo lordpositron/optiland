@@ -278,7 +278,7 @@ class Wavefront:
 
         discriminant = b_coeff**2 - 4 * a_coeff * c_coeff
         # Ensure discriminant is non-negative for real solutions
-        discriminant = be.maximum(discriminant, 0)
+        discriminant = be.maximum(discriminant, be.array(0))
 
         t1 = (-b_coeff - be.sqrt(discriminant)) / (2 * a_coeff)
         t2 = (-b_coeff + be.sqrt(discriminant)) / (2 * a_coeff)
