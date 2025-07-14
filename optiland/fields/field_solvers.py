@@ -6,8 +6,6 @@ This module contains classes for solving object-space field values
 Kramer Harrison, 2025
 """
 
-from __future__ import annotations
-
 import optiland.backend as be
 from optiland.fields.field_modes import AngleFieldMode, ObjectHeightFieldMode
 from optiland.optic import Optic
