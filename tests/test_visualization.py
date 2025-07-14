@@ -7,7 +7,8 @@ import matplotlib.pyplot as plt
 import pytest
 
 import optiland.backend as be
-from optiland import fields
+from optiland.fields.field_group import FieldGroup
+from optiland.fields.field_modes import AngleFieldMode
 from optiland.coordinate_system import CoordinateSystem
 from optiland.geometries import BaseGeometry, EvenAsphere
 from optiland.materials import AbbeMaterial, BaseMaterial, IdealMaterial, MaterialFile
@@ -89,7 +90,7 @@ class TestOpticViewer:
     @patch("matplotlib.pyplot.show")
     def test_view_single_field(self, mock_show, set_test_backend):
         lens = ReverseTelephoto()
-        lens.fields = fields.FieldGroup()
+        lens.fields = FieldGroup(mode=AngleFieldMode())
         lens.set_field_type(field_type="angle")
         lens.add_field(y=0)
         fig = lens.draw()
@@ -184,7 +185,7 @@ class TestOpticViewer3D:
 
     def test_view_single_field(self, set_test_backend):
         lens = ReverseTelephoto()
-        lens.fields = fields.FieldGroup()
+        lens.fields = FieldGroup(mode=AngleFieldMode())
         lens.set_field_type(field_type="angle")
         lens.add_field(y=0)
         viewer = OpticViewer3D(lens)

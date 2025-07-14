@@ -332,13 +332,16 @@ class AngleFieldMode(BaseFieldMode):
 
             # Calculate object heights (x0, y0) that would produce the given
             # field angles when viewed from the entrance pupil.
-            x0_scalar = -be.tan(be.radians(field_x_angle_deg)) * (EPL - z_obj_global)
-            y0_scalar = -be.tan(be.radians(field_y_angle_deg)) * (EPL - z_obj_global)
-            z0_scalar = z_obj_global  # Rays start on the object surface.
+            x0 = -be.tan(be.radians(field_x_angle_deg)) * (EPL - z_obj_global)
+            y0 = -be.tan(be.radians(field_y_angle_deg)) * (EPL - z_obj_global)
+            z0 = z_obj_global  # Rays start on the object surface.
 
-            x0 = be.full_like(Px, x0_scalar)
-            y0 = be.full_like(Px, y0_scalar)
-            z0 = be.full_like(Px, z0_scalar)
+            if be.size(x0) == 1:
+                x0 = be.full_like(Px, x0)
+            if be.size(y0) == 1:
+                y0 = be.full_like(Px, y0)
+            if be.size(z0) == 1:
+                z0 = be.full_like(Px, z0)
 
         return x0, y0, z0
 

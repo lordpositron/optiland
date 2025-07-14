@@ -75,7 +75,7 @@ class UVProjectionLens(optic.Optic):
         self.add_wavelength(value=0.248, is_primary=True)
 
         # Specify that the self is object-space telecentric
-        self.obj_space_telecentric = True
+        self.fields.telecentric = True
 
         # Move last surface to the paraxial image plane
         self.image_solve()
