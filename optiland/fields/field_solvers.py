@@ -8,19 +8,19 @@ Kramer Harrison, 2025
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 import optiland.backend as be
 from optiland.fields.field_modes import AngleFieldMode, ObjectHeightFieldMode
-from optiland.raytrace.paraxial_ray_tracer import ParaxialRayTracer as BaseParaxialRayTracer
-
-if TYPE_CHECKING:
-    from optiland.optic.optic import Optic
+from optiland.optic import Optic
+from optiland.raytrace.paraxial_ray_tracer import (
+    ParaxialRayTracer as BaseParaxialRayTracer,
+)
 
 
 class ParaxialRayTracer(BaseParaxialRayTracer):
     def trace_generic(self, y, u, z, wavelength, reverse=False, skip=0):
-        power = (self.optic.n(wavelength)[:-1] - self.optic.n(wavelength)[1:]) / self.optic.surface_group.radii[1:]
+        power = (
+            self.optic.n(wavelength)[:-1] - self.optic.n(wavelength)[1:]
+        ) / self.optic.surface_group.radii[1:]
         power = be.insert(power, 0, 0)
         return super().trace_generic(y, u, z, wavelength, reverse=reverse, skip=skip)
 
@@ -92,9 +92,7 @@ class _ParaxialImageHeightSolver:
 
         # 4. Solve for the required field using the ratio
         if be.isclose(y_image_for_unit_field, 0.0):
-            raise ValueError(
-                "A unit field results in zero image height; cannot solve."
-            )
+            raise ValueError("A unit field results in zero image height; cannot solve.")
 
         solved_field = (
             target_image_height / y_image_for_unit_field

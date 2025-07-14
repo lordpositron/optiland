@@ -428,7 +428,7 @@ class AngleFieldMode(BaseFieldMode):
         pass
 
 
-class ParaxialImageHeightFieldMode:
+class ParaxialImageHeightFieldMode(BaseFieldMode):
     def to_dict(self):
         """Converts the geometry to a dictionary.
 
