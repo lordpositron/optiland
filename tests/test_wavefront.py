@@ -96,7 +96,7 @@ class TestWavefront:
         w = wavefront.Wavefront(optic)
         w._trace_chief_ray((0, 0), 0.55)
         xc, yc, zc, R = w._get_reference_sphere(pupil_z=100)
-        t = w._opd_image_to_xp(xc, yc, zc, R, 0.55)
+        _, t = w._opd_image_to_xp(xc, yc, zc, R, 0.55)
         assert be.allclose(t, be.array([39.454938]))
 
 
