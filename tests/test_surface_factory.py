@@ -2,10 +2,10 @@ import optiland.backend as be
 import pytest
 
 from optiland.coatings import FresnelCoating, SimpleCoating
+from optiland.interactions.thin_lens_interaction_model import ThinLensInteractionModel
 from optiland.materials import IdealMaterial
 from optiland.samples.objectives import TessarLens
 from optiland.surfaces.object_surface import ObjectSurface
-from optiland.surfaces.paraxial_surface import ParaxialSurface
 from optiland.surfaces.standard_surface import Surface
 from optiland.surfaces import SurfaceFactory
 
@@ -235,7 +235,7 @@ class TestSurfaceFactory:
                 thickness=5,
             )
 
-    def test_create_paraxial_standard(self, set_test_backend):
+    def test_create_paraxial_surface(self, set_test_backend):
         surface = self.factory.create_surface(
             surface_type="paraxial",
             comment="Paraxial",
@@ -245,15 +245,15 @@ class TestSurfaceFactory:
             material="air",
             thickness=5,
         )
-        assert isinstance(surface, ParaxialSurface)
-        assert surface.f == 100
+        assert isinstance(surface, Surface)
+        assert isinstance(surface.interaction_model, ThinLensInteractionModel)
+        assert surface.interaction_model.f == 100
 
     def test_invalid_paraxial_surface(self, set_test_backend):
         with pytest.raises(ValueError):
             self.factory.create_surface(
                 surface_type="paraxial",
                 comment="Paraxial",
-                f=100,
                 index=0,
                 is_stop=False,
                 material="air",

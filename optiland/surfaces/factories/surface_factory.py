@@ -10,6 +10,7 @@ Kramer Harrison, 2024
 """
 
 import optiland.backend as be
+from optiland.interactions.thin_lens_interaction_model import ThinLensInteractionModel
 from optiland.surfaces.factories.coating_factory import CoatingFactory
 from optiland.surfaces.factories.coordinate_system_factory import (
     CoordinateSystemFactory,
@@ -17,7 +18,6 @@ from optiland.surfaces.factories.coordinate_system_factory import (
 from optiland.surfaces.factories.geometry_factory import GeometryConfig, GeometryFactory
 from optiland.surfaces.factories.material_factory import MaterialFactory
 from optiland.surfaces.object_surface import ObjectSurface
-from optiland.surfaces.paraxial_surface import ParaxialSurface
 from optiland.surfaces.standard_surface import Surface
 
 
@@ -112,21 +112,19 @@ class SurfaceFactory:
             surface_obj.thickness = kwargs.get("thickness", 0.0)
             return surface_obj
 
-        # Create the appropriate surface type
+        interaction_model = None
         if surface_type == "paraxial":
-            surface_obj = ParaxialSurface(
-                kwargs["f"],
-                geometry,
-                material_pre,
-                material_post,
-                is_stop,
+            if "f" not in kwargs:
+                raise ValueError("Focal length 'f' is required for paraxial surfaces.")
+            interaction_model = ThinLensInteractionModel(
+                focal_length=kwargs["f"],
+                geometry=geometry,
+                material_pre=material_pre,
+                material_post=material_post,
                 is_reflective=is_reflective,
                 coating=coating,
-                surface_type=surface_type,
-                aperture=kwargs.get("aperture"),
             )
-            surface_obj.thickness = kwargs.get("thickness", 0.0)
-            return surface_obj
+            surface_type = "plane"  # Thin lens is geometrically a plane
 
         # Standard surface - `surface_type` indicates geometrical shape of surface
         surface_obj = Surface(
@@ -139,6 +137,7 @@ class SurfaceFactory:
             surface_type=surface_type,
             comment=comment,
             aperture=kwargs.get("aperture"),
+            interaction_model=interaction_model,
         )
 
         # Add the thickness as an attribute to the surface
