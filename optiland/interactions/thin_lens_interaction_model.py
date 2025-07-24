@@ -1,10 +1,11 @@
 from typing import Optional
+
 import optiland.backend as be
-from optiland.interactions.base import BaseInteractionModel
-from optiland.rays.polarized_rays import PolarizedRays
-from optiland.geometries.base import BaseGeometry
-from optiland.materials.base import BaseMaterial
 from optiland.coatings import BaseCoating
+from optiland.geometries.base import BaseGeometry
+from optiland.interactions.base import BaseInteractionModel
+from optiland.materials.base import BaseMaterial
+from optiland.rays.polarized_rays import PolarizedRays
 from optiland.scatter import BaseBSDF
 
 

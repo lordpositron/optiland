@@ -5,6 +5,7 @@ This module contains the OpticalSystem class for visualizing optical systems.
 Kramer Harrison, 2024
 """
 
+from optiland.interactions.thin_lens_interaction_model import ThinLensInteractionModel
 from optiland.visualization.lens import Lens2D, Lens3D
 from optiland.visualization.mirror import Mirror3D
 from optiland.visualization.surface import Surface2D, Surface3D
@@ -79,12 +80,14 @@ class OpticalSystem:
                 if not surf.is_infinite:
                     self._add_component("surface", surf, extent)
 
-            # Image surface or paraxial surface
-            elif k == num_surf - 1 or surf.surface_type == "paraxial":
+            # Image surface or thin lens (paraxial) surface
+            elif k == num_surf - 1 or isinstance(
+                surf.interaction_model, ThinLensInteractionModel
+            ):
                 self._add_component("surface", surf, extent)
 
             # Surface is a mirror
-            elif surf.is_reflective:
+            elif surf.interaction_model.is_reflective:
                 self._add_component("mirror", surf, extent)
 
             # Front surface of a lens

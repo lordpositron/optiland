@@ -5,14 +5,15 @@ interaction model objects based on the given parameters.
 
 Kramer Harrison, 2024
 """
+
 from typing import Optional
 
+from optiland.coatings import BaseCoating
+from optiland.geometries.base import BaseGeometry
 from optiland.interactions.base import BaseInteractionModel
 from optiland.interactions.refractive_reflective_model import RefractiveReflectiveModel
 from optiland.interactions.thin_lens_interaction_model import ThinLensInteractionModel
-from optiland.geometries.base import BaseGeometry
 from optiland.materials.base import BaseMaterial
-from optiland.coatings import BaseCoating
 from optiland.scatter import BaseBSDF
 
 

@@ -1,15 +1,16 @@
 from abc import ABC, abstractmethod
 from typing import Optional
 
-from optiland.rays import ParaxialRays, RealRays
+from optiland.coatings import BaseCoating
 from optiland.geometries import BaseGeometry
 from optiland.materials import BaseMaterial
-from optiland.coatings import BaseCoating
+from optiland.rays import ParaxialRays, RealRays
 from optiland.scatter import BaseBSDF
 
 
 class BaseInteractionModel(ABC):
     """Abstract base class for ray-surface interaction models."""
+
     _registry = {}
 
     def __init__(
@@ -71,7 +72,9 @@ class BaseInteractionModel(ABC):
             **init_data,
         )
 
-    def _apply_coating_and_bsdf(self, rays: RealRays, nx: float, ny: float, nz: float) -> RealRays:
+    def _apply_coating_and_bsdf(
+        self, rays: RealRays, nx: float, ny: float, nz: float
+    ) -> RealRays:
         """Apply coating and BSDF to the rays."""
         if self.bsdf:
             rays = self.bsdf.scatter(rays, nx, ny, nz)
