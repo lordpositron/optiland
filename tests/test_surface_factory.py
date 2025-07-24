@@ -2,12 +2,13 @@ import optiland.backend as be
 import pytest
 
 from optiland.coatings import FresnelCoating, SimpleCoating
+from optiland.interactions.refractive_reflective_model import RefractiveReflectiveModel
 from optiland.interactions.thin_lens_interaction_model import ThinLensInteractionModel
 from optiland.materials import IdealMaterial
 from optiland.samples.objectives import TessarLens
 from optiland.surfaces.object_surface import ObjectSurface
 from optiland.surfaces.standard_surface import Surface
-from optiland.surfaces import SurfaceFactory
+from optiland.surfaces.factories.surface_factory import SurfaceFactory
 
 
 class TestSurfaceFactory:
@@ -33,6 +34,21 @@ class TestSurfaceFactory:
         assert surface.geometry.k == 0
         assert isinstance(surface.material_pre, IdealMaterial)
         assert isinstance(surface.material_post, IdealMaterial)
+        assert isinstance(surface.interaction_model, RefractiveReflectiveModel)
+
+    def test_create_mirror_surface(self, set_test_backend):
+        surface = self.factory.create_surface(
+            surface_type="standard",
+            comment="Mirror",
+            index=1,
+            is_stop=False,
+            material="mirror",
+            thickness=5,
+            radius=10,
+            conic=0,
+        )
+        assert isinstance(surface, Surface)
+        assert surface.interaction_model.is_reflective
 
     def test_create_surface_even_asphere(self, set_test_backend):
         surface = self.factory.create_surface(
@@ -173,7 +189,7 @@ class TestSurfaceFactory:
             coating=SimpleCoating(0.5, 0.5),
         )
         assert isinstance(surface, Surface)
-        assert isinstance(surface.coating, SimpleCoating)
+        assert isinstance(surface.interaction_model.coating, SimpleCoating)
 
     def test_create_surface_with_fresnel(self, set_test_backend):
         surface = self.factory.create_surface(
@@ -188,7 +204,7 @@ class TestSurfaceFactory:
             coating="fresnel",
         )
         assert isinstance(surface, Surface)
-        assert isinstance(surface.coating, FresnelCoating)
+        assert isinstance(surface.interaction_model.coating, FresnelCoating)
 
     def test_invalid_z_with_thickness(self, set_test_backend):
         with pytest.raises(ValueError):
@@ -259,3 +275,20 @@ class TestSurfaceFactory:
                 material="air",
                 thickness=5,
             )
+
+    def test_explicit_interaction_model(self, set_test_backend):
+        surface = self.factory.create_surface(
+            surface_type="standard",
+            comment="Explicit Interaction Model",
+            index=1,
+            is_stop=False,
+            material="air",
+            thickness=5,
+            radius=10,
+            conic=0,
+            interaction_type="thin_lens",
+            f=100,
+        )
+        assert isinstance(surface, Surface)
+        assert isinstance(surface.interaction_model, ThinLensInteractionModel)
+        assert surface.interaction_model.f == 100

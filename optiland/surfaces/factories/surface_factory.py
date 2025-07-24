@@ -10,12 +10,14 @@ Kramer Harrison, 2024
 """
 
 import optiland.backend as be
-from optiland.interactions.thin_lens_interaction_model import ThinLensInteractionModel
 from optiland.surfaces.factories.coating_factory import CoatingFactory
 from optiland.surfaces.factories.coordinate_system_factory import (
     CoordinateSystemFactory,
 )
 from optiland.surfaces.factories.geometry_factory import GeometryConfig, GeometryFactory
+from optiland.surfaces.factories.interaction_model_factory import (
+    InteractionModelFactory,
+)
 from optiland.surfaces.factories.material_factory import MaterialFactory
 from optiland.surfaces.object_surface import ObjectSurface
 from optiland.surfaces.standard_surface import Surface
@@ -43,6 +45,7 @@ class SurfaceFactory:
         self._geometry_factory = GeometryFactory()
         self._material_factory = MaterialFactory()
         self._coating_factory = CoatingFactory()
+        self._interaction_model_factory = InteractionModelFactory()
 
         self.use_absolute_cs = False
 
@@ -112,29 +115,30 @@ class SurfaceFactory:
             surface_obj.thickness = kwargs.get("thickness", 0.0)
             return surface_obj
 
-        interaction_model = None
+        # Determine interaction type
+        interaction_type = kwargs.get("interaction_type", "refractive_reflective")
         if surface_type == "paraxial":
-            if "f" not in kwargs:
-                raise ValueError("Focal length 'f' is required for paraxial surfaces.")
-            interaction_model = ThinLensInteractionModel(
-                focal_length=kwargs["f"],
-                geometry=geometry,
-                material_pre=material_pre,
-                material_post=material_post,
-                is_reflective=is_reflective,
-                coating=coating,
-            )
+            interaction_type = "thin_lens"
             surface_type = "plane"  # Thin lens is geometrically a plane
+
+        # Build interaction model
+        interaction_model = self._interaction_model_factory.create(
+            interaction_type=interaction_type,
+            geometry=geometry,
+            material_pre=material_pre,
+            material_post=material_post,
+            is_reflective=is_reflective,
+            coating=coating,
+            bsdf=kwargs.get("bsdf"),
+            focal_length=kwargs.get("f"),
+        )
 
         # Standard surface - `surface_type` indicates geometrical shape of surface
         surface_obj = Surface(
-            geometry,
-            material_pre,
-            material_post,
-            is_stop,
-            is_reflective=is_reflective,
-            coating=coating,
-            surface_type=surface_type,
+            geometry=geometry,
+            material_pre=material_pre,
+            material_post=material_post,
+            is_stop=is_stop,
             comment=comment,
             aperture=kwargs.get("aperture"),
             interaction_model=interaction_model,

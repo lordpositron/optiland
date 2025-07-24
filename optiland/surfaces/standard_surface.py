@@ -34,9 +34,9 @@ class Surface:
         aperture (BaseAperture, int, float, optional): The physical aperture of the
             surface. Defaults to None. If a scalar is provided, it specifies the
             diameter of the lens.
-        coating (BaseCoating, optional): The coating applied to the surface.
-            Defaults to None.
         comment (str, optional): A comment for the surface. Defaults to ''.
+        interaction_model (BaseInteractionModel, optional): The interaction
+            model for the surface. Defaults to None.
 
     """
 
@@ -49,10 +49,6 @@ class Surface:
         material_post: BaseMaterial,
         is_stop: bool = False,
         aperture: BaseAperture = None,
-        coating: BaseCoating = None,
-        bsdf: BaseBSDF = None,
-        is_reflective: bool = False,
-        surface_type: str = None,
         comment: str = "",
         interaction_model: BaseInteractionModel = None,
     ):
@@ -62,10 +58,6 @@ class Surface:
         self.is_stop = is_stop
         self.aperture = configure_aperture(aperture)
         self.semi_aperture = None
-        self.coating = coating
-        self.bsdf = bsdf
-        self.is_reflective = is_reflective
-        self.surface_type = surface_type
         self.comment = comment
 
         if interaction_model is None:
@@ -73,9 +65,9 @@ class Surface:
                 geometry=self.geometry,
                 material_pre=self.material_pre,
                 material_post=self.material_post,
-                is_reflective=self.is_reflective,
-                coating=self.coating,
-                bsdf=self.bsdf,
+                is_reflective=False,
+                coating=None,
+                bsdf=None,
             )
         else:
             self.interaction_model = interaction_model

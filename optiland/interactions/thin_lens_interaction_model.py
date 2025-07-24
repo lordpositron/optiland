@@ -1,13 +1,34 @@
+from typing import Optional
 import optiland.backend as be
 from optiland.interactions.base import BaseInteractionModel
 from optiland.rays.polarized_rays import PolarizedRays
+from optiland.geometries.base import BaseGeometry
+from optiland.materials.base import BaseMaterial
+from optiland.coatings import BaseCoating
+from optiland.scatter import BaseBSDF
 
 
 class ThinLensInteractionModel(BaseInteractionModel):
     """Interaction model for a thin lens."""
 
-    def __init__(self, focal_length, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(
+        self,
+        focal_length: float,
+        geometry: BaseGeometry,
+        material_pre: BaseMaterial,
+        material_post: BaseMaterial,
+        is_reflective: bool,
+        coating: Optional[BaseCoating],
+        bsdf: Optional[BaseBSDF],
+    ):
+        super().__init__(
+            geometry=geometry,
+            material_pre=material_pre,
+            material_post=material_post,
+            is_reflective=is_reflective,
+            coating=coating,
+            bsdf=bsdf,
+        )
         self.f = be.array(focal_length)
 
     def interact_real_rays(self, rays):
