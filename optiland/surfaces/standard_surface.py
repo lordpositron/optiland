@@ -13,6 +13,7 @@ Kramer Harrison, 2023
 import optiland.backend as be
 from optiland.coatings import BaseCoating, FresnelCoating
 from optiland.geometries import BaseGeometry
+from optiland.interactions.refractive_reflective_model import RefractiveReflectiveModel
 from optiland.materials import BaseMaterial
 from optiland.physical_apertures import BaseAperture
 from optiland.physical_apertures.radial import configure_aperture
@@ -64,6 +65,15 @@ class Surface:
         self.is_reflective = is_reflective
         self.surface_type = surface_type
         self.comment = comment
+
+        self.interaction_model = RefractiveReflectiveModel(
+            geometry=self.geometry,
+            material_pre=self.material_pre,
+            material_post=self.material_post,
+            is_reflective=self.is_reflective,
+            coating=self.coating,
+            bsdf=self.bsdf,
+        )
 
         self.thickness = 0.0  # used for surface positioning
 
@@ -152,46 +162,6 @@ class Surface:
             self.intensity = be.copy(be.atleast_1d(rays.i))
             self.opd = be.copy(be.atleast_1d(rays.opd))
 
-    def _interact(self, rays):
-        """Interacts the rays with the surface by either reflecting or refracting
-
-        Args:
-            rays: The rays.
-
-        Returns:
-            RealRays: The refracted rays.
-
-        """
-        # find surface normals
-        nx, ny, nz = self.geometry.surface_normal(rays)
-
-        # Interact with surface (refract or reflect)
-        if self.is_reflective:
-            rays.reflect(nx, ny, nz)
-        else:
-            n1 = self.material_pre.n(rays.w)
-            n2 = self.material_post.n(rays.w)
-            rays.refract(nx, ny, nz, n1, n2)
-
-        # if there is a surface scatter model, modify ray properties
-        if self.bsdf:
-            rays = self.bsdf.scatter(rays, nx, ny, nz)
-
-        # if there is a coating, modify ray properties
-        if self.coating:
-            rays = self.coating.interact(
-                rays,
-                reflect=self.is_reflective,
-                nx=nx,
-                ny=ny,
-                nz=nz,
-            )
-        else:
-            # update polarization matrices, if PolarizedRays
-            rays.update()
-
-        return rays
-
     def _trace_paraxial(self, rays: ParaxialRays):
         """Traces paraxial rays through the surface.
 
@@ -209,18 +179,8 @@ class Surface:
         t = -rays.z
         rays.propagate(t)
 
-        if self.is_reflective:
-            # reflect (derived from paraxial equations when n'=-n)
-            rays.u = -rays.u - 2 * rays.y / self.geometry.radius
-
-        else:
-            # surface power
-            n1 = self.material_pre.n(rays.w)
-            n2 = self.material_post.n(rays.w)
-            power = (n2 - n1) / self.geometry.radius
-
-            # refract
-            rays.u = 1 / n2 * (n1 * rays.u - rays.y * power)
+        # interact with surface
+        rays = self.interaction_model.interact_paraxial_rays(rays)
 
         # inverse transform coordinate system
         self.geometry.globalize(rays)
@@ -259,7 +219,7 @@ class Surface:
             self.aperture.clip(rays)
 
         # interact with surface
-        rays = self._interact(rays)
+        rays = self.interaction_model.interact_real_rays(rays)
 
         # inverse transform coordinate system
         self.geometry.globalize(rays)

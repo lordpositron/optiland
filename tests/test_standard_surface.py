@@ -97,6 +97,11 @@ class TestSurface:
         data = surface.to_dict()
         assert data["type"] == "Surface"
 
+    def test_interaction_model_initialization(self, set_test_backend):
+        surface = self.create_surface()
+        assert hasattr(surface, "interaction_model")
+        assert surface.interaction_model is not None
+
     def test_from_dict(self, set_test_backend):
         surface = self.create_surface()
         data = surface.to_dict()
