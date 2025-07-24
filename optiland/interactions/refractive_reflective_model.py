@@ -5,6 +5,10 @@ from optiland.rays import ParaxialRays, RealRays
 class RefractiveReflectiveModel(BaseInteractionModel):
     """Interaction model for standard refraction and reflection."""
 
+    def to_dict(self):
+        """Returns a dictionary representation of the model."""
+        return super().to_dict()
+
     def interact_real_rays(self, rays: RealRays) -> RealRays:
         """Interact with real rays, causing refraction or reflection.
 

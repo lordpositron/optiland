@@ -214,6 +214,17 @@ class Surface:
 
     def to_dict(self):
         """Returns a dictionary representation of the surface."""
+        # backward compatibility
+        if not hasattr(self, "interaction_model"):
+            self.interaction_model = RefractiveReflectiveModel(
+                geometry=self.geometry,
+                material_pre=self.material_pre,
+                material_post=self.material_post,
+                is_reflective=self.is_reflective,
+                coating=self.coating,
+                bsdf=self.bsdf,
+            )
+
         return {
             "type": self.__class__.__name__,
             "geometry": self.geometry.to_dict(),
@@ -221,9 +232,7 @@ class Surface:
             "material_post": self.material_post.to_dict(),
             "is_stop": self.is_stop,
             "aperture": self.aperture.to_dict() if self.aperture else None,
-            "coating": self.coating.to_dict() if self.coating else None,
-            "bsdf": self.bsdf.to_dict() if self.bsdf else None,
-            "is_reflective": self.is_reflective,
+            "interaction_model": self.interaction_model.to_dict(),
         }
 
     @classmethod
@@ -260,20 +269,36 @@ class Surface:
         material_pre = BaseMaterial.from_dict(data["material_pre"])
         material_post = BaseMaterial.from_dict(data["material_post"])
         aperture = (
-            BaseAperture.from_dict(data["aperture"]) if data["aperture"] else None
+            BaseAperture.from_dict(data["aperture"]) if data.get("aperture") else None
         )
-        coating = BaseCoating.from_dict(data["coating"]) if data["coating"] else None
-        bsdf = BaseBSDF.from_dict(data["bsdf"]) if data["bsdf"] else None
+
+        interaction_model_data = data.get("interaction_model")
+        if interaction_model_data:
+            interaction_model = BaseInteractionModel.from_dict(
+                interaction_model_data, geometry, material_pre, material_post
+            )
+        else:
+            # Backward compatibility
+            coating = (
+                BaseCoating.from_dict(data["coating"]) if data.get("coating") else None
+            )
+            bsdf = BaseBSDF.from_dict(data["bsdf"]) if data.get("bsdf") else None
+            interaction_model = RefractiveReflectiveModel(
+                geometry=geometry,
+                material_pre=material_pre,
+                material_post=material_post,
+                is_reflective=data.get("is_reflective", False),
+                coating=coating,
+                bsdf=bsdf,
+            )
 
         surface_class = cls._registry.get(surface_type, cls)
-
         return surface_class(
-            geometry,
-            material_pre,
-            material_post,
-            data["is_stop"],
-            aperture,
-            coating,
-            bsdf,
-            data["is_reflective"],
+            geometry=geometry,
+            material_pre=material_pre,
+            material_post=material_post,
+            is_stop=data.get("is_stop", False),
+            aperture=aperture,
+            comment=data.get("comment", ""),
+            interaction_model=interaction_model,
         )

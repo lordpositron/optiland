@@ -4,29 +4,28 @@ import optiland.backend as be
 from optiland.coatings import FresnelCoating, SimpleCoating
 from optiland.coordinate_system import CoordinateSystem
 from optiland.geometries import Plane
+from optiland.interactions.refractive_reflective_model import RefractiveReflectiveModel
+from optiland.interactions.thin_lens_interaction_model import ThinLensInteractionModel
 from optiland.materials import IdealMaterial
 from optiland.rays import ParaxialRays, RealRays
 from optiland.surfaces.standard_surface import Surface
 
 
 class TestSurface:
-    def create_surface(self):
+    def create_surface(self, interaction_model=None):
         cs = CoordinateSystem()
         geometry = Plane(cs)
         material_pre = IdealMaterial(1, 0)
         material_post = IdealMaterial(1.5, 0)
         aperture = None
-        coating = SimpleCoating(0.5, 0.5)
-        bsdf = None
         return Surface(
             geometry=geometry,
             material_pre=material_pre,
             material_post=material_post,
             is_stop=True,
             aperture=aperture,
-            coating=coating,
-            bsdf=bsdf,
-            is_reflective=True,
+            comment="a test comment",
+            interaction_model=interaction_model,
         )
 
     def test_trace_paraxial_rays(self, set_test_backend):
@@ -69,7 +68,7 @@ class TestSurface:
     def test_set_fresnel_coating(self, set_test_backend):
         surface = self.create_surface()
         surface.set_fresnel_coating()
-        assert isinstance(surface.coating, FresnelCoating)
+        assert isinstance(surface.interaction_model.coating, FresnelCoating)
 
     def test_is_rotationally_symmetric(self, set_test_backend):
         surface = self.create_surface()
@@ -102,8 +101,16 @@ class TestSurface:
         assert hasattr(surface, "interaction_model")
         assert surface.interaction_model is not None
 
-    def test_from_dict(self, set_test_backend):
-        surface = self.create_surface()
+    def test_from_dict_refractive_reflective(self, set_test_backend):
+        interaction_model = RefractiveReflectiveModel(
+            geometry=Plane(CoordinateSystem()),
+            material_pre=IdealMaterial(1, 0),
+            material_post=IdealMaterial(1.5, 0),
+            is_reflective=True,
+            coating=SimpleCoating(0.5, 0.5),
+            bsdf=None,
+        )
+        surface = self.create_surface(interaction_model=interaction_model)
         data = surface.to_dict()
         new_surface = Surface.from_dict(data)
         assert isinstance(new_surface, Surface)
@@ -112,19 +119,57 @@ class TestSurface:
         assert new_surface.material_post.to_dict() == surface.material_post.to_dict()
         assert new_surface.is_stop == surface.is_stop
         assert new_surface.aperture == surface.aperture
-        assert new_surface.coating.to_dict() == surface.coating.to_dict()
-        assert new_surface.is_reflective == surface.is_reflective
-        assert new_surface.semi_aperture is None
-        assert be.array_equal(new_surface.y, be.empty(0))
-        assert be.array_equal(new_surface.u, be.empty(0))
-        assert be.array_equal(new_surface.x, be.empty(0))
-        assert be.array_equal(new_surface.z, be.empty(0))
-        assert be.array_equal(new_surface.L, be.empty(0))
-        assert be.array_equal(new_surface.M, be.empty(0))
-        assert be.array_equal(new_surface.N, be.empty(0))
-        assert be.array_equal(new_surface.intensity, be.empty(0))
-        assert be.array_equal(new_surface.aoi, be.empty(0))
-        assert be.array_equal(new_surface.opd, be.empty(0))
+        assert new_surface.comment == surface.comment
+        assert isinstance(
+            new_surface.interaction_model, RefractiveReflectiveModel
+        )
+        assert (
+            new_surface.interaction_model.is_reflective
+            == surface.interaction_model.is_reflective
+        )
+        assert (
+            new_surface.interaction_model.coating.to_dict()
+            == surface.interaction_model.coating.to_dict()
+        )
+
+    def test_from_dict_thin_lens(self, set_test_backend):
+        interaction_model = ThinLensInteractionModel(
+            focal_length=10.0,
+            geometry=Plane(CoordinateSystem()),
+            material_pre=IdealMaterial(1, 0),
+            material_post=IdealMaterial(1.5, 0),
+            is_reflective=False,
+            coating=None,
+            bsdf=None,
+        )
+        surface = self.create_surface(interaction_model=interaction_model)
+        data = surface.to_dict()
+        new_surface = Surface.from_dict(data)
+        assert isinstance(new_surface, Surface)
+        assert isinstance(new_surface.interaction_model, ThinLensInteractionModel)
+        assert new_surface.interaction_model.f == surface.interaction_model.f
+
+    def test_from_dict_backward_compatibility(self, set_test_backend):
+        data = {
+            "type": "Surface",
+            "geometry": Plane(CoordinateSystem()).to_dict(),
+            "material_pre": IdealMaterial(1, 0).to_dict(),
+            "material_post": IdealMaterial(1.5, 0).to_dict(),
+            "is_stop": True,
+            "aperture": None,
+            "coating": SimpleCoating(0.5, 0.5).to_dict(),
+            "bsdf": None,
+            "is_reflective": True,
+        }
+        new_surface = Surface.from_dict(data)
+        assert isinstance(new_surface, Surface)
+        assert isinstance(
+            new_surface.interaction_model, RefractiveReflectiveModel
+        )
+        assert new_surface.interaction_model.is_reflective is True
+        assert isinstance(
+            new_surface.interaction_model.coating, SimpleCoating
+        )
 
     def test_from_dict_missing_type(self, set_test_backend):
         surface = self.create_surface()

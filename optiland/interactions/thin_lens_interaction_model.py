@@ -18,8 +18,8 @@ class ThinLensInteractionModel(BaseInteractionModel):
         material_pre: BaseMaterial,
         material_post: BaseMaterial,
         is_reflective: bool,
-        coating: Optional[BaseCoating],
-        bsdf: Optional[BaseBSDF],
+        coating: Optional[BaseCoating] = None,
+        bsdf: Optional[BaseBSDF] = None,
     ):
         super().__init__(
             geometry=geometry,
@@ -30,6 +30,12 @@ class ThinLensInteractionModel(BaseInteractionModel):
             bsdf=bsdf,
         )
         self.f = be.array(focal_length)
+
+    def to_dict(self):
+        """Returns a dictionary representation of the thin lens model."""
+        data = super().to_dict()
+        data["focal_length"] = self.f.item()
+        return data
 
     def interact_real_rays(self, rays):
         """Interacts the rays with the surface by either reflecting or refracting
