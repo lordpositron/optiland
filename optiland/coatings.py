@@ -11,8 +11,9 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 import optiland.backend as be
-from optiland.jones import JonesFresnel
+from optiland.jones import BaseJones, JonesFresnel
 from optiland.materials import BaseMaterial
+from optiland.thin_film import ThinFilmStack
 
 if TYPE_CHECKING:
     from optiland.rays import RealRays
@@ -391,4 +392,116 @@ class FresnelCoating(BaseCoatingPolarized):
         return cls(
             BaseMaterial.from_dict(data["material_pre"]),
             BaseMaterial.from_dict(data["material_post"]),
+        )
+
+
+class JonesThinFilm(BaseJones):
+    """Jones matrix generator for a thin-film stack.
+
+    Builds diagonal Jones matrices in the s/p basis using thin-film r/t
+    amplitude coefficients. Reflect or transmit selection mirrors JonesFresnel.
+
+    Args:
+        stack: ThinFilmStack configured with incident/substrate and layers.
+        wavelength_nm: Optional wavelength override (nm); if None uses rays.w (µm)
+        converted.
+        aoi_override_rad: Optional AOI override (radians); if None uses computed AOI.
+    """
+
+    def __init__(self, stack: ThinFilmStack):
+        self.stack = stack
+
+    def calculate_matrix(
+        self,
+        rays: RealRays,
+        reflect: bool = False,
+        aoi=None,
+    ):
+        # wavelengths: rays.w is in microns in Optiland
+        wl_um = rays.w
+        th = aoi if aoi is not None else be.zeros_like(rays.w)
+
+        # Compute s/p amplitudes per-ray; expect broadcasting over (N,)
+        r_s, t_s, _, _ = self._coeffs_amp(wl_um, th, pol="s", reflect=reflect)
+        r_p, t_p, _, _ = self._coeffs_amp(wl_um, th, pol="p", reflect=reflect)
+
+        jones = be.to_complex(be.zeros((be.size(rays.x), 3, 3)))
+        if reflect:
+            jones[:, 0, 0] = r_s
+            jones[:, 1, 1] = -r_p
+            jones[:, 2, 2] = -1
+        else:
+            jones[:, 0, 0] = t_s
+            jones[:, 1, 1] = t_p
+            jones[:, 2, 2] = 1
+        return jones
+
+    def _coeffs_amp(self, wl_um, th_rad, pol: str, reflect: bool):
+        # Use internal helpers returning amplitudes from the stack TMM
+        # We compute on per-ray vectors so shapes are (N,)
+        # Reshape to (N,1) to reuse stack’s 2D API, then squeeze back
+        wl2 = wl_um.reshape((-1, 1))
+        th2 = th_rad.reshape((-1, 1))
+        out = self.stack.coefficients(wl2, th2, pol)
+        r, t = out["r"].squeeze(), out["t"].squeeze()
+        R, T = out["R"].squeeze(), out["T"].squeeze()
+        return r, t, R, T
+
+
+class ThinFilmCoating(BaseCoatingPolarized):
+    """Polarized coating that applies a thin-film stack to rays.
+
+    This class mirrors FresnelCoating but uses a ThinFilmStack to compute the
+    s/p amplitude coefficients and builds a Jones matrix per ray via JonesThinFilm.
+
+    Args:
+        material_pre: Material before the stack (incident medium of the stack).
+        material_post: Material after the stack (substrate of the stack).
+        layers: Optional list of (material, thickness_nm, name) to build the stack.
+    """
+
+    def __init__(
+        self,
+        material_pre: BaseMaterial,
+        material_post: BaseMaterial,
+        layers: list[tuple[BaseMaterial, float, str | None]] | None = None,
+    ):
+        self.material_pre = material_pre
+        self.material_post = material_post
+        self.stack = ThinFilmStack(material_pre, material_post)
+        if layers:
+            for mat, thickness_nm, name in layers:
+                self.stack.add_layer_nm(mat, thickness_nm, name)
+        self.jones = JonesThinFilm(self.stack)
+
+    def to_dict(self):  # pragma: no cover
+        return {
+            "type": self.__class__.__name__,
+            "material_pre": self.material_pre.to_dict(),
+            "material_post": self.material_post.to_dict(),
+            "layers": [
+                {
+                    "material": layer.material.to_dict(),
+                    "thickness_nm": layer.thickness_um * 1000.0,
+                    "name": layer.name,
+                }
+                for layer in self.stack.layers
+            ],
+        }
+
+    @classmethod
+    def from_dict(cls, data):  # pragma: no cover
+        mats = []
+        for d in data.get("layers", []):
+            mats.append(
+                (
+                    BaseMaterial.from_dict(d["material"]),
+                    d["thickness_nm"],
+                    d.get("name"),
+                )
+            )
+        return cls(
+            BaseMaterial.from_dict(data["material_pre"]),
+            BaseMaterial.from_dict(data["material_post"]),
+            mats,
         )
