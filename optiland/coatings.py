@@ -17,6 +17,7 @@ from optiland.thin_film import ThinFilmStack
 
 if TYPE_CHECKING:
     from optiland.rays import RealRays
+    from optiland.thin_film import ThinFilmStack
 
 
 class BaseCoating(ABC):
@@ -417,7 +418,6 @@ class JonesThinFilm(BaseJones):
         reflect: bool = False,
         aoi=None,
     ):
-        # wavelengths: rays.w is in microns in Optiland
         wl_um = rays.w
         th = aoi if aoi is not None else be.zeros_like(rays.w)
 
@@ -464,14 +464,14 @@ class ThinFilmCoating(BaseCoatingPolarized):
         self,
         material_pre: BaseMaterial,
         material_post: BaseMaterial,
-        layers: list[tuple[BaseMaterial, float, str | None]] | None = None,
+        thin_film_coting: ThinFilmStack,
     ):
         self.material_pre = material_pre
         self.material_post = material_post
-        self.stack = ThinFilmStack(material_pre, material_post)
-        if layers:
-            for mat, thickness_nm, name in layers:
-                self.stack.add_layer_nm(mat, thickness_nm, name)
+        self.stack = thin_film_coting
+        self.stack.incident_material = material_pre
+        self.stack.substrate_material = material_post
+
         self.jones = JonesThinFilm(self.stack)
 
     def to_dict(self):  # pragma: no cover
