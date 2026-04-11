@@ -364,16 +364,13 @@ class RayOperand:
             The OPD difference for the given ray distribution.
 
         """
-        weights = 1.0
+        weights = None
 
         if distribution == "gaussian_quad":
             distribution = GaussianQuadrature()
 
-            if Hx == Hy == 0:
-                distribution.generate_points(num_rays, 1)
-            else:
-                distribution.generate_points(num_rays)
-            weights = distribution.weights * 3.0
+            distribution.generate_points(num_rays)
+            weights = distribution.weights
 
         wf = wavefront.Wavefront(
             optic,
@@ -384,8 +381,10 @@ class RayOperand:
         )
         wavefront_data = wf.get_data((Hx, Hy), wavelength)
         opd = wavefront_data.opd
-        delta = (opd - be.mean(opd)) * weights
-        return be.mean(be.abs(delta))
+        if weights is None:
+            weights = 1.0 / len(wf.distribution.x)
+        delta = be.abs(opd - be.mean(opd)) * weights
+        return be.sum(delta)
 
     @staticmethod
     def clearance(
